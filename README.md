@@ -23,6 +23,116 @@
 - [Visual Studio Code](https://code.visualstudio.com/download)
 
 ---
+### Project Tree
+
+```
+java-webstore-backend
+├─ .vscode
+│  └─ settings.json
+├─ README.md
+└─ rest-api
+   ├─ .gradle
+   │  ├─ 8.5
+   │  │  ├─ checksums
+   │  │  │  ├─ checksums.lock
+   │  │  │  ├─ md5-checksums.bin
+   │  │  │  └─ sha1-checksums.bin
+   │  │  ├─ dependencies-accessors
+   │  │  │  ├─ dependencies-accessors.lock
+   │  │  │  └─ gc.properties
+   │  │  ├─ executionHistory
+   │  │  │  ├─ executionHistory.bin
+   │  │  │  └─ executionHistory.lock
+   │  │  ├─ fileChanges
+   │  │  │  └─ last-build.bin
+   │  │  ├─ fileHashes
+   │  │  │  ├─ fileHashes.bin
+   │  │  │  ├─ fileHashes.lock
+   │  │  │  └─ resourceHashesCache.bin
+   │  │  ├─ gc.properties
+   │  │  └─ vcsMetadata
+   │  ├─ buildOutputCleanup
+   │  │  ├─ buildOutputCleanup.lock
+   │  │  ├─ cache.properties
+   │  │  └─ outputFiles.bin
+   │  ├─ file-system.probe
+   │  └─ vcs-1
+   │     └─ gc.properties
+   ├─ .vscode
+   │  └─ settings.json
+   ├─ build
+   │  ├─ classes
+   │  │  └─ java
+   │  │     ├─ main
+   │  │     │  └─ de
+   │  │     │     └─ webstore
+   │  │     │        └─ backend
+   │  │     │           ├─ Application.class
+   │  │     │           ├─ exception
+   │  │     │           │  ├─ BusinessException.class
+   │  │     │           │  ├─ GlobalExceptionHandler.class
+   │  │     │           │  └─ NotFoundException.class
+   │  │     │           └─ model
+   │  │     │              ├─ Auftrag.class
+   │  │     │              ├─ Lager.class
+   │  │     │              ├─ Position.class
+   │  │     │              └─ Produkt.class
+   │  │     └─ test
+   │  ├─ generated
+   │  │  └─ sources
+   │  │     ├─ annotationProcessor
+   │  │     │  └─ java
+   │  │     │     └─ main
+   │  │     └─ headers
+   │  │        └─ java
+   │  │           └─ main
+   │  ├─ resources
+   │  │  ├─ main
+   │  │  │  └─ application.properties
+   │  │  └─ test
+   │  └─ tmp
+   │     ├─ compileJava
+   │     │  ├─ compileTransaction
+   │     │  │  ├─ backup-dir
+   │     │  │  └─ stash-dir
+   │     │  │     └─ Application.class.uniqueId0
+   │     │  └─ previous-compilation-data.bin
+   │     └─ compileTestJava
+   ├─ build.gradle
+   ├─ gradle
+   │  └─ wrapper
+   │     ├─ gradle-wrapper.jar
+   │     └─ gradle-wrapper.properties
+   ├─ gradlew
+   ├─ gradlew.bat
+   ├─ HELP.md
+   ├─ README.md
+   ├─ settings.gradle
+   └─ src
+      ├─ main
+      │  ├─ java
+      │  │  └─ de
+      │  │     └─ webstore
+      │  │        └─ backend
+      │  │           ├─ Application.java
+      │  │           ├─ config
+      │  │           ├─ controller
+      │  │           ├─ exception
+      │  │           │  ├─ BusinessException.java
+      │  │           │  ├─ GlobalExceptionHandler.java
+      │  │           │  └─ NotFoundException.java
+      │  │           ├─ model
+      │  │           └─ service
+      │  └─ resources
+      │     └─ application.properties
+      └─ test
+         └─ java
+            └─ de
+               └─ webstore
+                  └─ backend
+
+```
+
 ## License
 
 GNU General Public License Version 3
