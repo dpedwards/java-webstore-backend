@@ -22,9 +22,12 @@ dependencies {
 	implementation 'jakarta.servlet:jakarta.servlet-api:5.0.0'
 	implementation 'org.webjars:webjars-locator-core:0.51'
 	implementation 'io.github.classgraph:classgraph:4.8.90'
+	implementation 'org.xerial:sqlite-jdbc:3.36.0.3'
+	implementation 'mysql:mysql-connector-java:8.0.29'
 
-	runtimeOnly 'com.h2database:h2'
-	runtimeOnly 'org.postgresql:postgresql'
+	runtimeOnly 'mysql:mysql-connector-java'
+	//runtimeOnly 'com.h2database:h2'
+	//runtimeOnly 'org.postgresql:postgresql'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
