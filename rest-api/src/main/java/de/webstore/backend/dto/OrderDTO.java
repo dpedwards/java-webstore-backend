@@ -20,7 +20,7 @@ public class OrderDTO {
         return orderNumber;
     }
 
-    public LocalDate getDatum() {
+    public LocalDate getDate() {
         return date;
     }
 
