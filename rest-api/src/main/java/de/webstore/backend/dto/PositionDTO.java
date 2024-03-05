@@ -1,21 +1,26 @@
 /* Copyright Davain Pablo Edwards core8@gmx.net. Licensed https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en */
 package de.webstore.backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Data Transfer Object (DTO) for Position entities.
  * <p>
  * This class is used to transfer position data related to orders and products between processes or through network calls without exposing domain models.
  */
+@Schema(description = "Data Transfer Object for Position")
 public class PositionDTO {
     
     // Unique identifier for the position
-    private int positionNumber;
+    @Schema(hidden = true) // This hides the positionId property in Swagger UI
+    private String positionId;
     
-    // Product number associated with this position
-    private int productNumber;
+    // Product ID associated with this position
+    private String productId;
     
-    // Order number associated with this position
-    private int orderNumber;
+    // Order ID associated with this position
+    //@Schema(hidden = true) // This hides the orderId property in Swagger UI
+    private String orderId;
     
     // Quantity of the product in this position
     private int quantity;
@@ -29,72 +34,72 @@ public class PositionDTO {
     /**
      * Constructs a PositionDTO with specified details.
      *
-     * @param positionNumber Unique identifier for the position
-     * @param productNumber Product number associated with this position
-     * @param orderNumber Order number associated with this position
+     * @param positionId Unique identifier for the position
+     * @param productId Product ID associated with this position
+     * @param orderId Order ID associated with this position
      * @param quantity Quantity of the product in this position
      */
-    public PositionDTO(int positionNumber, int productNumber, int orderNumber, int quantity) {
-        this.positionNumber = positionNumber;
-        this.productNumber = productNumber;
-        this.orderNumber = orderNumber;
+    public PositionDTO(String positionId, String productId, String orderId, int quantity) {
+        this.positionId = positionId;
+        this.productId = productId;
+        this.orderId = orderId;
         this.quantity = quantity;
     }
 
     // Getters and Setters
     
     /**
-     * Gets the position number.
+     * Gets the position ID.
      *
-     * @return the position number
+     * @return the position ID
      */
-    public int getPositionNumber() {
-        return positionNumber;
+    public String getPositionId() {
+        return positionId;
     }
 
     /**
-     * Sets the position number.
+     * Sets the position ID.
      *
-     * @param positionNumber the new position number
+     * @param positionId the new position ID
      */
-    public void setPositionNumber(int positionNumber) {
-        this.positionNumber = positionNumber;
+    public void setPositionNumber(String positionId) {
+        this.positionId = positionId;
     }
 
     /**
-     * Gets the product number.
+     * Gets the product ID.
      *
-     * @return the product number
+     * @return the product ID
      */
-    public int getProductNumber() {
-        return productNumber;
+    public String getProductId() {
+        return productId;
     }
 
     /**
-     * Sets the product number.
+     * Sets the product ID.
      *
-     * @param productNumber the new product number
+     * @param productId the new product ID
      */
-    public void setProductNumber(int productNumber) {
-        this.productNumber = productNumber;
+    public void setProductId(String productId) {
+        this.productId = productId;
     }
 
     /**
-     * Gets the order number.
+     * Gets the order ID.
      *
-     * @return the order number
+     * @return the order ID
      */
-    public int getOrderNumber() {
-        return orderNumber;
+    public String getOrderId() {
+        return orderId;
     }
 
     /**
-     * Sets the order number.
+     * Sets the order ID.
      *
-     * @param orderNumber the new order number
+     * @param orderId the new order ID
      */
-    public void setOrderNumber(int orderNumber) {
-        this.orderNumber = orderNumber;
+    public void setOrderId(String orderId) {
+        this.orderId = orderId;
     }
 
     /**
@@ -123,9 +128,9 @@ public class PositionDTO {
     @Override
     public String toString() {
         return "PositionDTO{" +
-                "positionNumber=" + positionNumber +
-                ", productNumber=" + productNumber +
-                ", orderNumber=" + orderNumber +
+                "positionId=" + positionId +
+                ", productId=" + productId +
+                ", orderId=" + orderId +
                 ", quantity=" + quantity +
                 '}';
     }
