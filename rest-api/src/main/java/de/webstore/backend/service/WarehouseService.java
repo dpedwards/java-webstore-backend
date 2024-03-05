@@ -26,7 +26,7 @@ public class WarehouseService {
     private final ProductService productService;
 
     @Autowired
-    public WarehouseService(Connection mockConnection, DatabaseConnection databaseConnection, JdbcTemplate jdbcTemplate, ProductService productService) {
+    public WarehouseService(DatabaseConnection databaseConnection, JdbcTemplate jdbcTemplate, ProductService productService) {
         this.databaseConnection = databaseConnection;
         this.jdbcTemplate = jdbcTemplate;
         this.productService = productService;
