@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.webstore.backend.dto.OrderDTO;
 import de.webstore.backend.dto.PositionDTO;
+import de.webstore.backend.exception.OrderClosedException;
 import de.webstore.backend.exception.OrderNotFoundException;
 import de.webstore.backend.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -62,7 +63,7 @@ public class OrderController {
      * @param id the ID of the order to retrieve
      * @return a ResponseEntity containing the requested OrderDTO or a not found response
      */
-    @GetMapping("/{id}")
+    @GetMapping("/{orderId}")
     @Operation(summary = "Retrieve a specific order by ID", responses = {
             @ApiResponse(responseCode = "200", description = "Order found",
                     content = @Content(mediaType = "application/json",
@@ -70,8 +71,8 @@ public class OrderController {
             @ApiResponse(responseCode = "404", description = "Order not found",
                     content = @Content)
     })
-    public ResponseEntity<?> getOrderById(@PathVariable int id) {
-        OrderDTO order = orderService.findById(id);
+    public ResponseEntity<?> getOrderById(@PathVariable String orderId) {
+        OrderDTO order = orderService.findById(orderId);
         if (order != null) {
             return ResponseEntity.ok(order);
         } else {
@@ -80,7 +81,7 @@ public class OrderController {
     }
 
     /**
-     * Creates a new order and returns the created order with its assigned order number.
+     * Creates a new order and returns the created order with its assigned order ID.
      * If the creation process encounters any issue (e.g., validation errors), it responds with an appropriate HTTP status code.
      *
      * @param orderDTO the order data to create
@@ -112,7 +113,7 @@ public class OrderController {
         }
     }
 
-    /**
+  /**
      * Adds a new position to an existing order and returns the added position.
      * Responds with an appropriate HTTP status code based on the outcome of the operation.
      *
@@ -129,23 +130,26 @@ public class OrderController {
                     content = @Content),
             @ApiResponse(responseCode = "404", description = "Order not found",
                     content = @Content),
+            @ApiResponse(responseCode = "409", description = "Order is closed",
+                    content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error, could not process the request",
                     content = @Content)
     })
-    public ResponseEntity<?> addOrderPosition(@PathVariable int orderId, @RequestBody PositionDTO positionDTO) {
+    public ResponseEntity<?> addOrderPosition(@PathVariable String orderId, @RequestBody PositionDTO positionDTO) {
         try {
-            positionDTO.setOrderNumber(orderId); // Link the position with the order
-            PositionDTO createdPosition = orderService.addOrderPosition(positionDTO);
-            if (createdPosition != null && createdPosition.getPositionNumber() != 0) {
-                return ResponseEntity.ok(createdPosition);
-            } else {
-                // In case the position addition fails but does not throw an exception.
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not add the position due to an unexpected error.");
+            // Verify if the order exists and is open
+            if(!orderService.checkOrderExistsAndOpen(orderId)) {
+                throw new OrderClosedException("Order with ID " + orderId + " is closed or does not exist.");
             }
+
+            PositionDTO createdPosition = orderService.addOrderPosition(orderId, positionDTO);
+            return ResponseEntity.ok(createdPosition);
         } catch (OrderNotFoundException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order with ID " + orderId + " not found.", e);
+        } catch (OrderClosedException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Error processing the request.", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not process the request.", e);
         }
     }
 
@@ -170,9 +174,9 @@ public class OrderController {
                    @ApiResponse(responseCode = "500", description = "Internal server error",
                                 content = @Content(schema = @Schema(hidden = true)))
                })
-    public ResponseEntity<?> deleteOrderPosition(@PathVariable int orderId, @PathVariable int positionId) {
+    public ResponseEntity<?> deleteOrderPosition(@PathVariable String orderId, @PathVariable String positionId) {
         try {
-            // Implement deletion logic
+            orderService.deleteOrderPosition(orderId, positionId);
             return ResponseEntity.ok().build();
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
@@ -201,7 +205,7 @@ public class OrderController {
                    @ApiResponse(responseCode = "500", description = "Internal server error",
                                 content = @Content(schema = @Schema(hidden = true)))
                })
-    public ResponseEntity<?> deleteOrder(@PathVariable int orderId) {
+    public ResponseEntity<?> deleteOrder(@PathVariable String orderId) {
         try {
             boolean orderExists = orderService.checkOrderExists(orderId);
             if (!orderExists) {
@@ -236,7 +240,7 @@ public class OrderController {
                    @ApiResponse(responseCode = "500", description = "Internal server error",
                                 content = @Content(schema = @Schema(hidden = true)))
                })
-    public ResponseEntity<?> closeOrder(@PathVariable int orderId) {
+    public ResponseEntity<?> closeOrder(@PathVariable String orderId) {
         try {
             boolean orderExists = orderService.checkOrderExists(orderId);
             if (!orderExists) {
