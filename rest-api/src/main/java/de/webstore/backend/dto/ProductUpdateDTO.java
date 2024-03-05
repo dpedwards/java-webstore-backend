@@ -3,6 +3,8 @@ package de.webstore.backend.dto;
 
 import java.math.BigDecimal;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Data Transfer Object (DTO) for Product entities.
  * <p>
@@ -11,12 +13,15 @@ import java.math.BigDecimal;
 public class ProductUpdateDTO {
       
     // Name of the product
+    @Schema(description = "Name of the product", example = "Ice Cream")
     private String name;
     
     // Measurement unit of the product (e.g., "kg", "liters")
+    @Schema(description = "Measurement unit of the product", example = "liters")
     private String unit;
     
     // Price of the product
+    @Schema(description = "Price of the product", example = "5.99")
     private BigDecimal price;
 
     /**
