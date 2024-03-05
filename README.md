@@ -34,16 +34,22 @@ To get started with the Java Webstore Backend Application:
    cd java-webstore-backend/rest-api
    ```
 
-3. Build the project:
+3. Build the project (optional):
    ```
    ./gradlew build  # For Unix/Linux/Mac
    gradlew.bat build  # For Windows
    ```
-4. Run the application:
+4. Run the application (optional):
    ```
    ./gradlew bootRun  # For Unix/Linux/Mac
    gradlew.bat bootRun  # For Windows
    ```
+5. Run the REST-API with Visual Studio Code [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) and [Gradle for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-gradle) Plugins
+   and execute `java-webstore-backend\rest-api\src\main\java\de\webstore\backend\Application.java` 
+
+6. Access Swagger docs:
+
+   http://localhost:8080/swagger-ui/index.html
 
 Project Structure
 The project is structured as follows:
