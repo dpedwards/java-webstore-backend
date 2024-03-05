@@ -100,6 +100,7 @@ public class WarehouseService {
                     warehouse = new WarehouseDTO();
                     warehouse.setWarehouseNumber(rs.getInt("lagernummer")); 
                     warehouse.setQuantity(rs.getInt("menge"));
+                    warehouse.setActive(rs.getBoolean("aktiv"));
                 }
             }
         } catch (SQLException e) {
