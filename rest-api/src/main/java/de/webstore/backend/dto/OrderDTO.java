@@ -3,18 +3,27 @@ package de.webstore.backend.dto;
 
 import java.time.LocalDate;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Data Transfer Object (DTO) for Order entities.
  * <p>
  * This class is used to transfer order data between processes or through network calls without exposing domain models.
  */
+@Schema(description = "Data Transfer Object for Order")
 public class OrderDTO {
     
-    // Order number uniquely identifying the order
-    private int orderNumber;
+    // Order ID uniquely identifying the order
+    @Schema(hidden = true) // This hides the orderId property in Swagger UI
+    private String orderId;
     
     // Date on which the order was placed
+    @Schema(description = "Date the order was placed", example = "2024-03-05")
     private LocalDate date;
+
+    // Status from the order
+    @Schema(description = "Order status", example = "offen")
+    private String status;
 
     /**
      * Default constructor.
@@ -22,23 +31,24 @@ public class OrderDTO {
     public OrderDTO() {}
 
     /**
-     * Parameterized constructor to create an order DTO with a specific order number and date.
+     * Parameterized constructor to create an order DTO with a specific order ID and date.
      *
-     * @param orderNumber the unique order number
+     * @param orderId the unique order ID
      * @param date the date the order was placed
      */
-    public OrderDTO(int orderNumber, LocalDate date) {
-        this.orderNumber = orderNumber;
+    public OrderDTO(String orderId, LocalDate date, String status) {
+        this.orderId = orderId;
         this.date = date;
+        this.status = status;
     }
 
     /**
-     * Gets the order number.
+     * Gets the order ID.
      *
-     * @return the order number
+     * @return the order ID
      */
-    public int getOrderNumber() {
-        return orderNumber;
+    public String getOrderId() {
+        return orderId;
     }
 
     /**
@@ -51,12 +61,21 @@ public class OrderDTO {
     }
 
     /**
-     * Sets the order number.
+     * Gets the status current status from the order.
      *
-     * @param orderNumber the order number to set
+     * @return the order status
      */
-    public void setOrderNumber(int orderNumber) {
-        this.orderNumber = orderNumber;
+    public String getStatus() {
+        return status;
+    }
+
+    /**
+     * Sets the order ID.
+     *
+     * @param orderId the order ID to set
+     */
+    public void setOrderId(String orderId) {
+        this.orderId = orderId;
     }
 
     /**
@@ -69,6 +88,15 @@ public class OrderDTO {
     }
 
     /**
+     * Sets the date the order was placed.
+     *
+     * @param status from the order to set
+     */
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    /**
      * Returns a string representation of the OrderDTO.
      *
      * @return a string representation of the OrderDTO
@@ -76,7 +104,8 @@ public class OrderDTO {
     @Override
     public String toString() {
         return "OrderDTO{" +
-                "orderNumber=" + orderNumber +
+                "orderId=" + orderId +
+                "status=" + status + 
                 ", date=" + date +
                 '}';
     }
