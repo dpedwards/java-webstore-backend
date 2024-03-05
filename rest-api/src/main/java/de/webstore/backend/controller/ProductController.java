@@ -3,11 +3,17 @@ package de.webstore.backend.controller;
 
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import de.webstore.backend.dto.ProductDTO;
 import de.webstore.backend.dto.ProductUpdateDTO;
 import de.webstore.backend.service.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
 /**
  * Controller for product-related operations.
@@ -31,80 +37,149 @@ public class ProductController {
     }
 
     /**
-     * Retrieves all products.
+     * Retrieves all products and returns them in a list.
+     * 
+     * <p>Returns HTTP status 200 along with the list of all product data.</p>
      *
      * @return a ResponseEntity containing a list of all ProductDTOs
      */
     @GetMapping("/all")
+    @Operation(summary = "Retrieve all products", responses = {
+        @ApiResponse(responseCode = "200", description = "List of all products",
+                     content = @Content(mediaType = "application/json", 
+                     schema = @Schema(implementation = ProductDTO.class)))
+    })
     public ResponseEntity<List<ProductDTO>> getAllProducts() {
         List<ProductDTO> products = productService.findAll();
         return ResponseEntity.ok(products);
     }
 
     /**
-     * Retrieves a product by its ID.
+     * Retrieves a product by its ID and returns it.
+     * 
+     * <p>Returns HTTP status 200 along with the product data if the product is found.
+     * Returns HTTP status 404 if the product with the specified ID is not found.</p>
      *
      * @param id the ID of the product to retrieve
-     * @return a ResponseEntity containing the requested ProductDTO
+     * @return a ResponseEntity containing the requested ProductDTO or a not found status
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDTO> getProductById(@PathVariable int id) {
+    @Operation(summary = "Retrieve a product by its ID", responses = {
+        @ApiResponse(responseCode = "200", description = "Product found",
+                     content = @Content(schema = @Schema(implementation = ProductDTO.class))),
+        @ApiResponse(responseCode = "404", description = "Product not found")
+    })
+    public ResponseEntity<?> getProductById(@PathVariable int id) {
         ProductDTO product = productService.findById(id);
         if (product != null) {
             return ResponseEntity.ok(product);
         } else {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product ID " + id + " not found.");
         }
     }
 
     /**
-     * Adds a new product.
+     * Adds a new product and returns it.
      * 
-     * <p>Returns the created product on success. Returns a BadRequest status if the product number is not set or if an error occurs.
+     * <p>Validates the input data before creating the product.
+     * If the product is successfully created, returns HTTP status 201 along with the product.
+     * Returns HTTP status 400 for bad requests, such as validation errors.
+     * Returns HTTP status 500 for internal errors during the creation process.</p>
      *
-     * @param productDTO the product to add
-     * @return a ResponseEntity containing the created ProductDTO
+     * @param productDTO the product data to create
+     * @return a ResponseEntity with the created ProductDTO or an error message
      */
     @PostMapping("/add")
-    public ResponseEntity<ProductDTO> addProduct(@RequestBody ProductDTO productDTO) {
-        ProductDTO createdProduct = productService.addProduct(productDTO);
-        if (createdProduct != null && createdProduct.getProductNumber() != 0) {
-            return ResponseEntity.ok(createdProduct);
-        } else {
-            return ResponseEntity.badRequest().build();
+    @Operation(summary = "Add a new product", responses = {
+        @ApiResponse(responseCode = "201", description = "Product created successfully",
+                     content = @Content(schema = @Schema(implementation = ProductDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Bad request, invalid input data"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<?> addProduct(@RequestBody ProductDTO productDTO) {
+        try {
+            // Assuming productService.addProduct() validates the input and throws IllegalArgumentException for validation errors
+            ProductDTO createdProduct = productService.addProduct(productDTO);
+            // Assume productNumber is auto-generated and checked for non-zero to confirm creation
+            if (createdProduct != null && createdProduct.getProductNumber() != 0) {
+                return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
+            } else {
+                // This case may be redundant if productService.addProduct() handles all validation and exception scenarios
+                return ResponseEntity.badRequest().body("Invalid product data provided");
+            }
+        } catch (IllegalArgumentException e) {
+            // Handle validation errors, e.g., missing name, unit, or price
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            // Catch other exceptions, indicating possible internal errors
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while creating the product");
         }
     }
 
     /**
      * Updates the attributes of an existing product.
-     * 
-     * <p>Returns the updated product on success. Returns a NotFound status if the product is not found.
+     * Returns HTTP status code 200 if the update was successful, HTTP status code 500 if there is a database error, 
+     * and HTTP status code 404 if everything is okay with the database but the ID was not found.
      *
      * @param id the ID of the product to update
-     * @param productDTO the updated product data
-     * @return a ResponseEntity containing the updated ProductDTO
+     * @param productUpdateDTO the updated product data
+     * @return a ResponseEntity containing the updated ProductDTO or an appropriate error message
      */
     @PutMapping("/update/{id}")
-    public ResponseEntity<ProductUpdateDTO> updateProduct(@PathVariable int id, @RequestBody ProductUpdateDTO productUpdateDTO) {
-        ProductUpdateDTO updatedProduct = productService.updateProduct(id, productUpdateDTO);
-        if (updatedProduct != null) {
-            return ResponseEntity.ok(updatedProduct);
-        } else {
-            return ResponseEntity.notFound().build();
+    @Operation(summary = "Update a product by its ID", responses = {
+        @ApiResponse(responseCode = "200", description = "Product updated successfully", 
+                     content = @Content(schema = @Schema(implementation = ProductUpdateDTO.class))),
+        @ApiResponse(responseCode = "404", description = "Product ID not found", 
+                     content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error", 
+                     content = @Content(schema = @Schema(implementation = String.class)))
+    })
+    public ResponseEntity<?> updateProduct(@PathVariable int id, @RequestBody ProductUpdateDTO productUpdateDTO) {
+        try {
+            ProductUpdateDTO updatedProduct = productService.updateProduct(id, productUpdateDTO);
+            if (updatedProduct != null) {
+                // Product updated successfully
+                return ResponseEntity.ok(updatedProduct);
+            } else {
+                // Product ID not found
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product ID " + id + " not found.");
+            }
+        } catch (DataAccessException e) {
+            // Database error
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Database error occurred: " + e.getMessage());
+        } catch (Exception e) {
+            // Other errors
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred: " + e.getMessage());
         }
     }
 
     /**
-     * Deletes a product.
+     * Deletes a product by its ID.
      * 
-     * <p>Returns an OK status on success.
+     * <p>Returns HTTP status code 200 if the product was successfully deleted.
+     * Returns HTTP status code 404 if the product is not found, 
+     * and HTTP status code 500 if a database error occurs.</p>
      *
      * @param id the ID of the product to delete
      * @return a ResponseEntity indicating the result of the operation
      */
     @DeleteMapping("/delete/{id}")
+    @Operation(summary = "Delete a product by its ID", responses = {
+        @ApiResponse(responseCode = "200", description = "Product deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "Product not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     public ResponseEntity<?> deleteProduct(@PathVariable int id) {
-        productService.deleteProduct(id);
-        return ResponseEntity.ok().build();
+        try {
+            boolean isDeleted = productService.deleteProduct(id);
+            if (isDeleted) {
+                return ResponseEntity.ok().body("Product deleted successfully");
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product ID " + id + " not found.");
+            }
+        } catch (Exception e) {
+            // Log the exception details here
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the product.");
+        }
     }
 }
