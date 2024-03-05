@@ -54,17 +54,17 @@ public class WarehouseService {
     /**
      * Finds a specific warehouse entry by its ID.
      *
-     * @param id The ID of the warehouse to find.
+     * @param warehouseId The ID of the warehouse to find.
      * @return The found warehouse entry or null if not found.
      */
-    public WarehouseDTO findById(int id) {
+    public WarehouseDTO findById(int warehouseId) {
         WarehouseDTO warehouse = null;
         String sql = "SELECT * FROM lager WHERE lagernummer = ?";
 
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
-            pstmt.setInt(1, id);
+            pstmt.setInt(1, warehouseId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
                     warehouse = new WarehouseDTO();
@@ -81,11 +81,11 @@ public class WarehouseService {
     /**
      * Adds a specified quantity of a product to the warehouse.
      *
-     * @param produktId The ID of the product.
+     * @param productId The ID of the product.
      * @param orderId The ID of the warehouse.
      * @param menge The quantity to add.
      */
-    public void addProductQuantity(int produktId, int orderId, int menge) {
+    public void addProductQuantity(int productId, int orderId, int menge) {
         // Attempt to update existing product quantity in the warehouse
         String updateSql = "UPDATE produktlagermenge SET menge = menge + ? WHERE produkt_fk = ? AND lager_fk = ?";
         // Fallback SQL to insert a new product quantity record if the update affects no rows
@@ -95,14 +95,14 @@ public class WarehouseService {
              PreparedStatement pstmtUpdate = conn.prepareStatement(updateSql)) {
             
             pstmtUpdate.setInt(1, menge);
-            pstmtUpdate.setInt(2, produktId);
+            pstmtUpdate.setInt(2, productId);
             pstmtUpdate.setInt(3, orderId);
             int affectedRows = pstmtUpdate.executeUpdate();
             
             // If no rows were affected by the update, try to insert a new record
             if (affectedRows == 0) {
                 try (PreparedStatement pstmtInsert = conn.prepareStatement(insertSql)) {
-                    pstmtInsert.setInt(1, produktId);
+                    pstmtInsert.setInt(1, productId);
                     pstmtInsert.setInt(2, orderId);
                     pstmtInsert.setInt(3, menge);
                     pstmtInsert.executeUpdate();
@@ -116,17 +116,17 @@ public class WarehouseService {
     /**
      * Reduces a specified quantity of a product in the warehouse. Ensures quantity does not go below zero.
      *
-     * @param produktId The ID of the product.
+     * @param productId The ID of the product.
      * @param orderId The ID of the warehouse.
      * @param menge The quantity to reduce.
      */
-    public void reduceProductQuantity(int produktId, int orderId, int menge) {
+    public void reduceProductQuantity(int productId, int orderId, int menge) {
         String sql = "UPDATE produktlagermenge SET menge = GREATEST(0, menge - ?) WHERE produkt_fk = ? AND lager_fk = ?";
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
             pstmt.setInt(1, menge);
-            pstmt.setInt(2, produktId);
+            pstmt.setInt(2, productId);
             pstmt.setInt(3, orderId);
             pstmt.executeUpdate();
         } catch (SQLException e) {
@@ -137,16 +137,16 @@ public class WarehouseService {
     /**
      * Calculates the total quantity of a specified product across all warehouses.
      *
-     * @param produktId The ID of the product.
+     * @param productId The ID of the product.
      * @return The total quantity of the product.
      */
-    public int calculateTotalProductQuantity(int produktId) {
+    public int calculateTotalProductQuantity(int productId) {
         String sql = "SELECT SUM(menge) AS totalQuantity FROM produktlagermenge WHERE produkt_fk = ?";
         int totalQuantity = 0;
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
-            pstmt.setInt(1, produktId);
+            pstmt.setInt(1, productId);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
                 totalQuantity = rs.getInt("totalQuantity");
