@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import de.webstore.backend.dto.OrderDTO;
 import de.webstore.backend.dto.PositionDTO;
+import de.webstore.backend.exception.OrderNotFoundException;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -58,28 +60,33 @@ public class OrderService {
     }
 
     /**
-     * Finds a specific order by its ID.
+     * Finds a specific order by its ID and throws OrderNotFoundException if not found.
      *
-     * @param id the order ID
-     * @return the found order or null if not found
+     * @param orderId the order ID
+     * @return the found order
+     * @throws OrderNotFoundException if the order with the given ID is not found
      */
-    public OrderDTO findById(int id) {
+    public OrderDTO findById(int orderId) {
         OrderDTO order = null;
         String sql = "SELECT * FROM auftrag WHERE auftragsnummer = ?";
 
         try (Connection conn = databaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
-            pstmt.setInt(1, id);
+            pstmt.setInt(1, orderId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
                     order = new OrderDTO();
                     order.setOrderNumber(rs.getInt("auftragsnummer"));
                     order.setDate(rs.getDate("datum").toLocalDate());
+                } else {
+                    // If the order with the specified ID is not found, throw OrderNotFoundException
+                    throw new OrderNotFoundException("Order with ID " + orderId + " not found.");
                 }
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
+            // Consider wrapping and rethrowing SQLException as a runtime exception or a custom checked exception
         }
         return order;
     }
@@ -274,5 +281,30 @@ public class OrderService {
                 ex.printStackTrace();
             }
         }
+    }
+
+    /**
+     * Checks if an order exists in the database.
+     * 
+     * @param orderId The ID of the order to check.
+     * @return true if the order exists, false otherwise.
+     */
+    public boolean checkOrderExists(int orderId) {
+        String sql = "SELECT COUNT(*) FROM auftrag WHERE auftragsnummer = ?";
+        try (Connection conn = databaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+             
+            pstmt.setInt(1, orderId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    int count = rs.getInt(1);
+                    return count > 0;
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Error checking order existence: " + e.getMessage());
+            // Consider appropriate exception handling strategy
+        }
+        return false;
     }
 }
