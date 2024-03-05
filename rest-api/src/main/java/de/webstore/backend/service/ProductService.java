@@ -144,8 +144,9 @@ public class ProductService {
      * Deletes a product from the database, ensuring it is not part of any order position.
      *
      * @param id the ID of the product to delete
+     * @return 
      */
-    public void deleteProduct(int id) {
+    public boolean deleteProduct(int id) {
         String checkSql = "SELECT COUNT(*) AS count FROM position WHERE produktnummer = ?";
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
@@ -164,5 +165,6 @@ public class ProductService {
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
+        return false;
     }
 }
