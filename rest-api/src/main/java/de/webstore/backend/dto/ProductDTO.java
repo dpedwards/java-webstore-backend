@@ -3,23 +3,30 @@ package de.webstore.backend.dto;
 
 import java.math.BigDecimal;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Data Transfer Object (DTO) for Product entities.
  * <p>
  * This class is used to transfer product data between processes or through network calls without exposing domain models.
  */
+@Schema(description = "Data Transfer Object for Product")
 public class ProductDTO {
     
     // Unique product identifier
-    private int productNumber;
+    @Schema(hidden = true) // This hides the productId property in Swagger UI
+    private String productId;
     
     // Name of the product
+    @Schema(description = "Name of the product", example = "Ice Cream")
     private String name;
     
     // Measurement unit of the product (e.g., "kg", "liters")
+    @Schema(description = "Measurement unit of the product", example = "liters")
     private String unit;
     
     // Price of the product
+    @Schema(description = "Price of the product", example = "5.99")
     private BigDecimal price;
 
     /**
@@ -30,13 +37,13 @@ public class ProductDTO {
     /**
      * Constructs a ProductDTO with specified details.
      *
-     * @param productNumber Unique identifier for the product
+     * @param productId Unique identifier for the product
      * @param name Name of the product
      * @param unit Measurement unit of the product
      * @param price Price of the product
      */
-    public ProductDTO(int productNumber, String name, String unit, BigDecimal price) {
-        this.productNumber = productNumber;
+    public ProductDTO(String productId, String name, String unit, BigDecimal price) {
+        this.productId = productId;
         this.name = name;
         this.unit = unit;
         this.price = price;
@@ -45,12 +52,12 @@ public class ProductDTO {
     // Getters
     
     /**
-     * Gets the product number.
+     * Gets the product ID.
      *
-     * @return the product number
+     * @return the product ID
      */
-    public int getProductNumber() {
-        return productNumber;
+    public String getProductId() {
+        return productId;
     }
 
     /**
@@ -83,12 +90,12 @@ public class ProductDTO {
     // Setters
     
     /**
-     * Sets the product number.
+     * Sets the product ID.
      *
-     * @param productNumber the new product number
+     * @param productId the new product ID
      */
-    public void setProductNumber(int productNumber) {
-        this.productNumber = productNumber;
+    public void setProductId(String productId) {
+        this.productId = productId;
     }
 
     /**
@@ -126,7 +133,7 @@ public class ProductDTO {
     @Override
     public String toString() {
         return "ProductDTO{" +
-                "productNumber=" + productNumber +
+                "productId=" + productId +
                 ", name='" + name + '\'' +
                 ", unit='" + unit + '\'' +
                 ", price=" + price +
