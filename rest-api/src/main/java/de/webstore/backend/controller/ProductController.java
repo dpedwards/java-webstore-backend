@@ -69,7 +69,7 @@ public class ProductController {
                      content = @Content(schema = @Schema(implementation = ProductDTO.class))),
         @ApiResponse(responseCode = "404", description = "Product not found")
     })
-    public ResponseEntity<?> getProductById(@PathVariable int productId) {
+    public ResponseEntity<?> getProductById(@PathVariable String productId) {
         ProductDTO product = productService.findById(productId);
         if (product != null) {
             return ResponseEntity.ok(product);
@@ -100,8 +100,8 @@ public class ProductController {
         try {
             // Assuming productService.addProduct() validates the input and throws IllegalArgumentException for validation errors
             ProductDTO createdProduct = productService.addProduct(productDTO);
-            // Assume productNumber is auto-generated and checked for non-zero to confirm creation
-            if (createdProduct != null && createdProduct.getProductNumber() != 0) {
+            // Assume productId is auto-generated and checked for non-zero to confirm creation
+            if (createdProduct != null && createdProduct.getProductId() != null) {
                 return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
             } else {
                 // This case may be redundant if productService.addProduct() handles all validation and exception scenarios
@@ -134,7 +134,7 @@ public class ProductController {
         @ApiResponse(responseCode = "500", description = "Internal server error", 
                      content = @Content(schema = @Schema(implementation = String.class)))
     })
-    public ResponseEntity<?> updateProduct(@PathVariable int productId, @RequestBody ProductUpdateDTO productUpdateDTO) {
+    public ResponseEntity<?> updateProduct(@PathVariable String productId, @RequestBody ProductUpdateDTO productUpdateDTO) {
         try {
             ProductUpdateDTO updatedProduct = productService.updateProduct(productId, productUpdateDTO);
             if (updatedProduct != null) {
@@ -169,7 +169,7 @@ public class ProductController {
         @ApiResponse(responseCode = "404", description = "Product not found"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<?> deleteProduct(@PathVariable int productId) {
+    public ResponseEntity<?> deleteProduct(@PathVariable String productId) {
         try {
             boolean isDeleted = productService.deleteProduct(productId);
             if (isDeleted) {
