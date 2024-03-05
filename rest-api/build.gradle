@@ -24,6 +24,8 @@ dependencies {
 	implementation 'io.github.classgraph:classgraph:4.8.90'
 	implementation 'org.xerial:sqlite-jdbc:3.36.0.3'
 	implementation 'mysql:mysql-connector-java:8.0.29'
+	testImplementation 'org.mockito:mockito-core:3.3.3' // Use the latest version available
+	//implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:1.5.9'
 
 	runtimeOnly 'mysql:mysql-connector-java'
 	//runtimeOnly 'com.h2database:h2'
