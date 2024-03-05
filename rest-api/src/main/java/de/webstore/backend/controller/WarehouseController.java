@@ -2,11 +2,16 @@
 package de.webstore.backend.controller;
 
 import java.util.List;
+
+import javax.naming.InsufficientResourcesException;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import de.webstore.backend.dto.WarehouseDTO;
+import de.webstore.backend.exception.ProductNotFoundException;
+import de.webstore.backend.service.ProductService;
 import de.webstore.backend.service.WarehouseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -23,6 +28,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 public class WarehouseController {
 
     private final WarehouseService warehouseService;
+    private final ProductService productService;
 
     /**
      * Constructs a WarehouseController with the specified WarehouseService.
@@ -30,8 +36,9 @@ public class WarehouseController {
      * @param warehouseService the service to handle warehouse operations
      */
     @Autowired
-    public WarehouseController(WarehouseService warehouseService) {
+    public WarehouseController(WarehouseService warehouseService, ProductService productService) {
         this.warehouseService = warehouseService;
+        this.productService = productService;
     }
 
     /**
@@ -48,31 +55,31 @@ public class WarehouseController {
                     content = @Content)
     })
     public ResponseEntity<List<WarehouseDTO>> getAllWarehouseEntries() {
-        List<WarehouseDTO> warehouses = warehouseService.findAll();
+        List<WarehouseDTO> warehouses = warehouseService.findAllActive();
         return ResponseEntity.ok(warehouses);
     }
 
     /**
-     * Retrieves a specific warehouse by its ID.
+     * Retrieves a specific warehouse by its Number.
      * 
-     * <p>This endpoint retrieves warehouse details based on the provided warehouse ID.
+     * <p>This endpoint retrieves warehouse details based on the provided warehouse Number.
      * It returns the warehouse details if found, or a 404 Not Found status if the warehouse does not exist.
      * 
-     * @param warehouseId the ID of the warehouse to retrieve
+     * @param warehouseNumber the Number of the warehouse to retrieve
      * @return a ResponseEntity containing the requested WarehouseDTO or a 404 status if not found
      */
-    @GetMapping("/{warehouseId}")
-    @Operation(summary = "Get a warehouse by its ID", description = "Retrieves warehouse details for the given warehouse ID.", responses = {
+    @GetMapping("/{warehouseNumber}")
+    @Operation(summary = "Get a warehouse by its Number", description = "Retrieves warehouse details for the given warehouse Number.", responses = {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved the warehouse",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = WarehouseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Warehouse not found for the provided ID",
+            @ApiResponse(responseCode = "404", description = "Warehouse not found for the provided Number",
                     content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<WarehouseDTO> getWarehouseById(@PathVariable int warehouseId) {
-        WarehouseDTO warehouse = warehouseService.findById(warehouseId);
+    public ResponseEntity<WarehouseDTO> getWarehouseById(@PathVariable int warehouseNumber) {
+        WarehouseDTO warehouse = warehouseService.findById(warehouseNumber);
         if (warehouse != null) {
             return ResponseEntity.ok(warehouse);
         } else {
@@ -86,12 +93,12 @@ public class WarehouseController {
      * <p>This operation updates the stock quantity for a specified product in a specified warehouse by adding the given quantity. 
      * If successful, a confirmation is returned.
      * 
-     * @param productId the ID of the product to add quantity to
-     * @param warehouseId the ID of the warehouse where quantity is to be added
+     * @param productId the Number of the product to add quantity to
+     * @param warehouseNumber the Number of the warehouse where quantity is to be added
      * @param quantity the quantity to add
      * @return a ResponseEntity indicating the result of the operation
      */
-    @PostMapping("/add/product/{productId}/warehouse/{warehouseId}")
+    @PostMapping("/add/product/{productId}/warehouse/{warehouseNumber}")
     @Operation(summary = "Add product quantity to a warehouse", description = "Adds a specified quantity of a product to the specified warehouse.", responses = {
             @ApiResponse(responseCode = "200", description = "Successfully added the product quantity to the warehouse",
                     content = @Content),
@@ -102,9 +109,9 @@ public class WarehouseController {
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<?> addProductQuantity(@PathVariable int productId, @PathVariable int warehouseId, @org.springframework.web.bind.annotation.RequestBody int quantity) {
+    public ResponseEntity<?> addProductQuantity(@PathVariable String productId, @PathVariable int warehouseNumber, @org.springframework.web.bind.annotation.RequestBody int quantity) {
         try {
-            warehouseService.addProductQuantity(productId, warehouseId, quantity);
+            warehouseService.addProductQuantity(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Failed to add product quantity: " + e.getMessage());
@@ -117,12 +124,12 @@ public class WarehouseController {
      * <p>This operation decreases the stock quantity for a specified product in a specified warehouse by the given quantity. 
      * If the operation is successful, a confirmation is returned.
      *
-     * @param productId the ID of the product to reduce the quantity of
-     * @param warehouseId the ID of the warehouse where the quantity is to be reduced
+     * @param productId the Number of the product to reduce the quantity of
+     * @param warehouseNumber the Number of the warehouse where the quantity is to be reduced
      * @param quantity the quantity to reduce
      * @return a ResponseEntity indicating the result of the operation
      */
-    @PostMapping("/reduce/product/{productId}/warehouse/{warehouseId}")
+    @PostMapping("/reduce/product/{productId}/warehouse/{warehouseNumber}")
     @Operation(summary = "Reduce product quantity in a warehouse", description = "Reduces a specified quantity of a product in the specified warehouse.", responses = {
             @ApiResponse(responseCode = "200", description = "Successfully reduced the product quantity in the warehouse",
                     content = @Content),
@@ -133,11 +140,20 @@ public class WarehouseController {
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<?> reduceProductQuantity(@PathVariable int productId, @PathVariable int warehouseId, @RequestBody int quantity) {
+    public ResponseEntity<?> reduceProductQuantity(@PathVariable String productId, @PathVariable int warehouseNumber, @RequestBody int quantity) throws InsufficientResourcesException {
         try {
-            warehouseService.reduceProductQuantity(productId, warehouseId, quantity);
+            // Example validation, assuming productService and warehouseService have methods to check existence
+            if (!productService.exists(productId) || !warehouseService.exists(warehouseNumber)) {
+                return ResponseEntity.notFound().build(); // 404 for not found resources
+            }
+            if (quantity <= 0) {
+                return ResponseEntity.badRequest().body("Quantity must be positive");
+            }
+    
+            warehouseService.reduceProductQuantity(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
+            // Consider logging the error here
             return ResponseEntity.internalServerError().body("Failed to reduce product quantity: " + e.getMessage());
         }
     }
@@ -147,7 +163,7 @@ public class WarehouseController {
      * 
      * <p>This operation sums up the quantity of the specified product available across all warehouses and returns the total amount.
      *
-     * @param productId the ID of the product to calculate the total quantity for
+     * @param productId the Number of the product to calculate the total quantity for
      * @return a ResponseEntity containing the total quantity
      */
     @GetMapping("/product/{productId}/total")
@@ -160,13 +176,14 @@ public class WarehouseController {
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<Integer> getTotalProductQuantity(@PathVariable int productId) {
+    public ResponseEntity<Integer> getTotalProductQuantity(@PathVariable String productId) {
         try {
-            int totalQuantity = warehouseService.calculateTotalProductQuantity(productId);
-            return ResponseEntity.ok(totalQuantity);
+                int totalQuantity = warehouseService.calculateTotalProductQuantity(productId);
+                return ResponseEntity.ok(totalQuantity);
+        } catch (ProductNotFoundException e) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         } catch (Exception e) {
-            // Assuming a custom exception for a non-existent product is defined
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null); // Or use a more appropriate exception and error message
+                return ResponseEntity.internalServerError().body(null);
         }
     }
 }
