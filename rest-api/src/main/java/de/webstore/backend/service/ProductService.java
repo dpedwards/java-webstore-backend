@@ -4,6 +4,8 @@ package de.webstore.backend.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import de.webstore.backend.dto.ProductDTO;
+import de.webstore.backend.dto.ProductUpdateDTO;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -122,20 +124,20 @@ public class ProductService {
      * @param productDTO the updated product information
      * @return the updated product
      */
-    public ProductDTO updateProduct(int id, ProductDTO productDTO) {
+    public ProductUpdateDTO updateProduct(int id, ProductUpdateDTO productUpdateDTO) {
         String sql = "UPDATE produkt SET name = ?, einheit = ?, preis = ? WHERE produktnummer = ?";
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setString(1, productDTO.getName());
-            pstmt.setString(2, productDTO.getUnit());
-            pstmt.setBigDecimal(3, productDTO.getPrice());
+            pstmt.setString(1, productUpdateDTO.getName());
+            pstmt.setString(2, productUpdateDTO.getUnit());
+            pstmt.setBigDecimal(3, productUpdateDTO.getPrice());
             pstmt.setInt(4, id);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
-        return productDTO;
+        return productUpdateDTO;
     }
 
     /**
