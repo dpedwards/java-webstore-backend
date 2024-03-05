@@ -1,36 +1,68 @@
-[![Java](https://img.shields.io/badge/java-%2019-brown.svg)](https://www.java.com/de/download/faq/java19.xml)
+[![Java](https://img.shields.io/badge/java-%2017-brown.svg)](https://www.java.com/de/download/faq/java17.xml)
 [![JUnit](https://img.shields.io/badge/JUnit-%204-orange.svg)](https://junit.org/junit5/)
 
-#  SOFTWARE ENGINEERING ASSIGNMENT (ITB63-AS)
+# SOFTWARE ENGINEERING ASSIGNMENT (ITB63-AS)
 
-## Java Webstore backend application.
--------------------------------------------------------
+## Java Webstore Backend Application
 
-:wip:
+This repository contains the source code for a Java webstore backend application, designed as part of the ITB63-AS software engineering assignment. The application provides a suite of RESTful services to manage products, warehouses, and orders for an online store.
 
----
+### Credits
 
-## Credits
+#### Creator
 
-### Creator
+- **Davain Pablo Edwards**
 
-**Davain Pablo Edwards**
+### Environment Requirements
 
+To run this application, you will need:
 
-### Environment requirements
+- [Java 17](https://www.java.com/de/download/)
+- [Visual Studio Code](https://code.visualstudio.com/download) (Recommended IDE)
 
-- [Java](https://www.java.com/de/download/)
-- [Visual Studio Code](https://code.visualstudio.com/download)
+### Getting Started
 
----
-### Project Tree
+To get started with the Java Webstore Backend Application:
+
+1. **Clone the repository:**
+   ```
+   git clone <repository-url>
+   ```
+
+2. Navigate to the project directory:
+   ```
+   cd java-webstore-backend
+   ```
+
+3. Build the project:
+   ```
+   ./gradlew build  # For Unix/Linux/Mac
+   gradlew.bat build  # For Windows
+   ```
+4. Run the application:
+   ```
+   ./gradlew bootRun  # For Unix/Linux/Mac
+   gradlew.bat bootRun  # For Windows
+   ```
+
+Project Structure
+The project is structured as follows:
 
 ```
 java-webstore-backend
+├─ .git
+├─ .gitignore
 ├─ .vscode
 │  └─ settings.json
+├─ assets
+│  ├─ warehouse_database.db
+│  ├─ warehouse_database_de.sql
+│  ├─ warehouse_database_en.sql
+│  ├─ warehouse_database_test.sql
+│  └─ warehouse_database_uuid_de.sql
 ├─ README.md
 └─ rest-api
+   ├─ .gitignore
    ├─ .gradle
    │  ├─ 8.5
    │  │  ├─ checksums
@@ -68,36 +100,58 @@ java-webstore-backend
    │  │     │     └─ webstore
    │  │     │        └─ backend
    │  │     │           ├─ Application.class
+   │  │     │           ├─ config
+   │  │     │           │  └─ DatabaseConnection.class
+   │  │     │           ├─ controller
+   │  │     │           │  ├─ OrderController.class
+   │  │     │           │  ├─ ProductController.class
+   │  │     │           │  └─ WarehouseController.class
+   │  │     │           ├─ dto
+   │  │     │           │  ├─ OrderDTO.class
+   │  │     │           │  ├─ PositionDTO.class
+   │  │     │           │  ├─ ProductDTO.class
+   │  │     │           │  ├─ ProductUpdateDTO.class
+   │  │     │           │  └─ WarehouseDTO.class
    │  │     │           ├─ exception
-   │  │     │           │  ├─ BusinessException.class
-   │  │     │           │  ├─ GlobalExceptionHandler.class
-   │  │     │           │  └─ NotFoundException.class
-   │  │     │           └─ model
-   │  │     │              ├─ Auftrag.class
-   │  │     │              ├─ Lager.class
-   │  │     │              ├─ Position.class
-   │  │     │              └─ Produkt.class
+   │  │     │           │  ├─ OrderClosedException.class
+   │  │     │           │  ├─ OrderNotFoundException.class
+   │  │     │           │  └─ ProductNotFoundException.class
+   │  │     │           └─ service
+   │  │     │              ├─ OrderService.class
+   │  │     │              ├─ ProductService.class
+   │  │     │              └─ WarehouseService.class
    │  │     └─ test
+   │  │        └─ de
+   │  │           └─ webstore
+   │  │              └─ backend
+   │  │                 └─ WarehouseServiceTest.class
    │  ├─ generated
    │  │  └─ sources
    │  │     ├─ annotationProcessor
    │  │     │  └─ java
-   │  │     │     └─ main
+   │  │     │     ├─ main
+   │  │     │     └─ test
    │  │     └─ headers
    │  │        └─ java
-   │  │           └─ main
+   │  │           ├─ main
+   │  │           └─ test
    │  ├─ resources
-   │  │  ├─ main
-   │  │  │  └─ application.properties
-   │  │  └─ test
+   │  │  └─ main
+   │  │     └─ application.properties
    │  └─ tmp
    │     ├─ compileJava
    │     │  ├─ compileTransaction
    │     │  │  ├─ backup-dir
    │     │  │  └─ stash-dir
-   │     │  │     └─ Application.class.uniqueId0
+   │     │  │     ├─ WarehouseController.class.uniqueId0
+   │     │  │     └─ WarehouseService.class.uniqueId1
    │     │  └─ previous-compilation-data.bin
    │     └─ compileTestJava
+   │        ├─ compileTransaction
+   │        │  ├─ backup-dir
+   │        │  └─ stash-dir
+   │        │     └─ WarehouseServiceTest.class.uniqueId0
+   │        └─ previous-compilation-data.bin
    ├─ build.gradle
    ├─ gradle
    │  └─ wrapper
@@ -106,7 +160,6 @@ java-webstore-backend
    ├─ gradlew
    ├─ gradlew.bat
    ├─ HELP.md
-   ├─ README.md
    ├─ settings.gradle
    └─ src
       ├─ main
@@ -116,32 +169,41 @@ java-webstore-backend
       │  │        └─ backend
       │  │           ├─ Application.java
       │  │           ├─ config
+      │  │           │  └─ DatabaseConnection.java
       │  │           ├─ controller
+      │  │           │  ├─ OrderController.java
+      │  │           │  ├─ ProductController.java
+      │  │           │  └─ WarehouseController.java
+      │  │           ├─ dto
+      │  │           │  ├─ OrderDTO.java
+      │  │           │  ├─ PositionDTO.java
+      │  │           │  ├─ ProductDTO.java
+      │  │           │  ├─ ProductUpdateDTO.java
+      │  │           │  └─ WarehouseDTO.java
       │  │           ├─ exception
-      │  │           │  ├─ BusinessException.java
-      │  │           │  ├─ GlobalExceptionHandler.java
-      │  │           │  └─ NotFoundException.java
-      │  │           ├─ model
+      │  │           │  ├─ OrderClosedException.java
+      │  │           │  ├─ OrderNotFoundException.java
+      │  │           │  └─ ProductNotFoundException.java
       │  │           └─ service
+      │  │              ├─ OrderService.java
+      │  │              ├─ ProductService.java
+      │  │              └─ WarehouseService.java
       │  └─ resources
-      │     └─ application.properties
       └─ test
          └─ java
             └─ de
                └─ webstore
                   └─ backend
+                     └─ WarehouseServiceTest.java
 
 ```
 
-## License
 
-GNU General Public License Version 3
+License
+This project is licensed under the GNU General Public License Version 3.
 
 Copyright (c) 2024 Davain Pablo Edwards
-
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-For further information regarding the license, please see: <http://www.gnu.org/licenses/>.
