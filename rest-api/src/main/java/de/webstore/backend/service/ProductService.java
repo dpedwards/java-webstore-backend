@@ -61,17 +61,17 @@ public class ProductService {
     /**
      * Finds a specific product by its ID.
      *
-     * @param id the product ID
+     * @param productId the product ID
      * @return the found product or null if not found
      */
-    public ProductDTO findById(int id) {
+    public ProductDTO findById(int productId) {
         ProductDTO product = null;
         String sql = "SELECT produktnummer, name, einheit, preis FROM produkt WHERE produktnummer = ?";
 
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, id);
+            pstmt.setInt(1, productId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
                     product = new ProductDTO();
@@ -120,11 +120,11 @@ public class ProductService {
     /**
      * Updates the attributes of an existing product based on its ID.
      *
-     * @param id         the ID of the product to update
+     * @param productId         the ID of the product to update
      * @param productDTO the updated product information
      * @return the updated product
      */
-    public ProductUpdateDTO updateProduct(int id, ProductUpdateDTO productUpdateDTO) {
+    public ProductUpdateDTO updateProduct(int productId, ProductUpdateDTO productUpdateDTO) {
         String sql = "UPDATE produkt SET name = ?, einheit = ?, preis = ? WHERE produktnummer = ?";
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -132,7 +132,7 @@ public class ProductService {
             pstmt.setString(1, productUpdateDTO.getName());
             pstmt.setString(2, productUpdateDTO.getUnit());
             pstmt.setBigDecimal(3, productUpdateDTO.getPrice());
-            pstmt.setInt(4, id);
+            pstmt.setInt(4, productId);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             System.out.println(e.getMessage());
@@ -143,20 +143,20 @@ public class ProductService {
     /**
      * Deletes a product from the database, ensuring it is not part of any order position.
      *
-     * @param id the ID of the product to delete
+     * @param productId the ID of the product to delete
      * @return 
      */
-    public boolean deleteProduct(int id) {
+    public boolean deleteProduct(int productId) {
         String checkSql = "SELECT COUNT(*) AS count FROM position WHERE produktnummer = ?";
         try (Connection conn = databaseConnection.getConnection();
              PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
 
-            checkStmt.setInt(1, id);
+            checkStmt.setInt(1, productId);
             ResultSet rs = checkStmt.executeQuery();
             if (rs.next() && rs.getInt("count") == 0) {
                 String deleteSql = "DELETE FROM produkt WHERE produktnummer = ?";
                 try (PreparedStatement deleteStmt = conn.prepareStatement(deleteSql)) {
-                    deleteStmt.setInt(1, id);
+                    deleteStmt.setInt(1, productId);
                     deleteStmt.executeUpdate();
                 }
             } else {
