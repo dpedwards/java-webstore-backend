@@ -31,7 +31,7 @@ To get started with the Java Webstore Backend Application:
 
 2. Navigate to the project directory:
    ```
-   cd java-webstore-backend
+   cd java-webstore-backend/rest-api
    ```
 
 3. Build the project:
