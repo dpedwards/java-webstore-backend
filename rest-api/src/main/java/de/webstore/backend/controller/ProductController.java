@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import de.webstore.backend.dto.ProductDTO;
+import de.webstore.backend.dto.ProductUpdateDTO;
 import de.webstore.backend.service.ProductService;
 
 /**
@@ -14,7 +15,7 @@ import de.webstore.backend.service.ProductService;
  * <p>Supports adding, updating, retrieving, and deleting products.
  */
 @RestController
-@RequestMapping("/api/de/v1/products")
+@RequestMapping("/api/de/v1/product")
 public class ProductController {
 
     private final ProductService productService;
@@ -34,7 +35,7 @@ public class ProductController {
      *
      * @return a ResponseEntity containing a list of all ProductDTOs
      */
-    @GetMapping("/")
+    @GetMapping("/all")
     public ResponseEntity<List<ProductDTO>> getAllProducts() {
         List<ProductDTO> products = productService.findAll();
         return ResponseEntity.ok(products);
@@ -64,7 +65,7 @@ public class ProductController {
      * @param productDTO the product to add
      * @return a ResponseEntity containing the created ProductDTO
      */
-    @PostMapping("/")
+    @PostMapping("/add")
     public ResponseEntity<ProductDTO> addProduct(@RequestBody ProductDTO productDTO) {
         ProductDTO createdProduct = productService.addProduct(productDTO);
         if (createdProduct != null && createdProduct.getProductNumber() != 0) {
@@ -83,9 +84,9 @@ public class ProductController {
      * @param productDTO the updated product data
      * @return a ResponseEntity containing the updated ProductDTO
      */
-    @PutMapping("/{id}")
-    public ResponseEntity<ProductDTO> updateProduct(@PathVariable int id, @RequestBody ProductDTO productDTO) {
-        ProductDTO updatedProduct = productService.updateProduct(id, productDTO);
+    @PutMapping("/update/{id}")
+    public ResponseEntity<ProductUpdateDTO> updateProduct(@PathVariable int id, @RequestBody ProductUpdateDTO productUpdateDTO) {
+        ProductUpdateDTO updatedProduct = productService.updateProduct(id, productUpdateDTO);
         if (updatedProduct != null) {
             return ResponseEntity.ok(updatedProduct);
         } else {
@@ -101,7 +102,7 @@ public class ProductController {
      * @param id the ID of the product to delete
      * @return a ResponseEntity indicating the result of the operation
      */
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/delete/{id}")
     public ResponseEntity<?> deleteProduct(@PathVariable int id) {
         productService.deleteProduct(id);
         return ResponseEntity.ok().build();

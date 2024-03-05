@@ -34,7 +34,7 @@ public class WarehouseController {
      *
      * @return a ResponseEntity containing a list of all WarehouseDTOs
      */
-    @GetMapping("/")
+    @GetMapping("/all")
     public ResponseEntity<List<WarehouseDTO>> getAllWarehouseEntries() {
         List<WarehouseDTO> warehouses = warehouseService.findAll();
         return ResponseEntity.ok(warehouses);
@@ -66,7 +66,7 @@ public class WarehouseController {
      * @param quantity the quantity to add
      * @return a ResponseEntity indicating the result of the operation
      */
-    @PostMapping("/product/{productId}/warehouse/{warehouseId}/add")
+    @PostMapping("/add/product/{productId}/warehouse/{warehouseId}")
     public ResponseEntity<?> addProductQuantity(@PathVariable int productId, @PathVariable int warehouseId, @RequestBody int quantity) {
         warehouseService.addProductQuantity(productId, warehouseId, quantity);
         return ResponseEntity.ok().build();
@@ -82,7 +82,7 @@ public class WarehouseController {
      * @param quantity the quantity to reduce
      * @return a ResponseEntity indicating the result of the operation
      */
-    @PostMapping("/product/{productId}/warehouse/{warehouseId}/reduce")
+    @PostMapping("/reduce/product/{productId}/warehouse/{warehouseId}")
     public ResponseEntity<?> reduceProductQuantity(@PathVariable int productId, @PathVariable int warehouseId, @RequestBody int quantity) {
         warehouseService.reduceProductQuantity(productId, warehouseId, quantity);
         return ResponseEntity.ok().build();

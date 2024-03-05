@@ -14,7 +14,7 @@ import de.webstore.backend.service.OrderService;
  * REST controller for managing orders.
  */
 @RestController
-@RequestMapping("/api/de/v1/orders")
+@RequestMapping("/api/de/v1/order")
 public class OrderController {
 
     private final OrderService orderService;
@@ -34,7 +34,7 @@ public class OrderController {
      *
      * @return a ResponseEntity containing a list of OrderDTOs
      */
-    @GetMapping("/")
+    @GetMapping("/all")
     public ResponseEntity<List<OrderDTO>> getAllOrders() {
         List<OrderDTO> orders = orderService.findAll();
         return ResponseEntity.ok(orders);
@@ -57,7 +57,7 @@ public class OrderController {
      * @param orderDTO the order to create
      * @return a ResponseEntity containing the created OrderDTO
      */
-    @PostMapping("/")
+    @PostMapping("/add")
     public ResponseEntity<OrderDTO> createOrder(@RequestBody OrderDTO orderDTO) {
         OrderDTO createdOrder = orderService.createOrder(orderDTO);
         if (createdOrder != null && createdOrder.getOrderNumber() != 0) {
@@ -74,7 +74,7 @@ public class OrderController {
      * @param positionDTO the position to add to the order
      * @return a ResponseEntity containing the created PositionDTO
      */
-    @PostMapping("/{orderId}/position")
+    @PostMapping("/add/{orderId}/position")
     public ResponseEntity<PositionDTO> addOrderPosition(@PathVariable int orderId, @RequestBody PositionDTO positionDTO) {
         positionDTO.setOrderNumber(orderId); // Sets the order ID to the position
         PositionDTO createdPosition = orderService.addOrderPosition(positionDTO);
@@ -92,7 +92,7 @@ public class OrderController {
      * @param positionId the ID of the position to delete
      * @return a ResponseEntity indicating the result of the operation
      */
-    @DeleteMapping("/{orderId}/position/{positionId}")
+    @DeleteMapping("/delete/{orderId}/position/{positionId}")
     public ResponseEntity<?> deleteOrderPosition(@PathVariable int orderId, @PathVariable int positionId) {
         orderService.deleteOrderPosition(positionId);
         return ResponseEntity.ok().build();
@@ -104,7 +104,7 @@ public class OrderController {
      * @param orderId the ID of the order to delete
      * @return a ResponseEntity indicating the result of the operation
      */
-    @DeleteMapping("/{orderId}")
+    @DeleteMapping("/delete/{orderId}")
     public ResponseEntity<?> deleteOrder(@PathVariable int orderId) {
         orderService.deleteOrder(orderId);
         return ResponseEntity.ok().build();
@@ -116,7 +116,7 @@ public class OrderController {
      * @param orderId the ID of the order to close
      * @return a ResponseEntity indicating the result of the operation
      */
-    @PutMapping("/{orderId}/close")
+    @PutMapping("/close/{orderId}")
     public ResponseEntity<?> closeOrder(@PathVariable int orderId) {
         boolean isClosed = orderService.closeOrder(orderId);
         if (isClosed) {
