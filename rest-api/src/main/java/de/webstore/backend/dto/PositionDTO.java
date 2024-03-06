@@ -19,7 +19,7 @@ public class PositionDTO {
     private String productId;
     
     // Order ID associated with this position
-    //@Schema(hidden = true) // This hides the orderId property in Swagger UI
+    @Schema(hidden = true) // This hides the orderId property in Swagger UI
     private String orderId;
     
     // Quantity of the product in this position
@@ -62,7 +62,7 @@ public class PositionDTO {
      *
      * @param positionId the new position ID
      */
-    public void setPositionNumber(String positionId) {
+    public void setPositionId(String positionId) {
         this.positionId = positionId;
     }
 

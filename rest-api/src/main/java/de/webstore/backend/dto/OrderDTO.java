@@ -18,7 +18,7 @@ public class OrderDTO {
     private String orderId;
     
     // Date on which the order was placed
-    @Schema(description = "Date the order was placed", example = "2024-03-05")
+    //@Schema(description = "Date the order was placed", example = "2024-03-05")
     private LocalDate date;
 
     // Status from the order
