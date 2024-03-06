@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import de.webstore.backend.dto.OrderDTO;
 import de.webstore.backend.dto.PositionDTO;
+import de.webstore.backend.exception.ErrorResponse;
 import de.webstore.backend.exception.OrderClosedException;
 import de.webstore.backend.exception.OrderNotFoundException;
 import de.webstore.backend.service.OrderService;
@@ -122,7 +123,7 @@ public class OrderController {
      * @return a ResponseEntity containing the added PositionDTO on success, or an appropriate error response
      */
     @PostMapping("/{orderId}/positions")
-    @Operation(summary = "Add a position to an existing order", responses = {
+    @Operation(summary = "Add a new position with a product and a quantity to an existing open order", responses = {
             @ApiResponse(responseCode = "200", description = "Position added successfully",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = PositionDTO.class))),
@@ -141,15 +142,15 @@ public class OrderController {
             if(!orderService.checkOrderExistsAndOpen(orderId)) {
                 throw new OrderClosedException("Order with ID " + orderId + " is closed or does not exist.");
             }
-
+    
             PositionDTO createdPosition = orderService.addOrderPosition(orderId, positionDTO);
             return ResponseEntity.ok(createdPosition);
         } catch (OrderNotFoundException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order with ID " + orderId + " not found.", e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
         } catch (OrderClosedException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order with ID " + orderId + " is closed."));
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not process the request.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Could not process the request."));
         }
     }
 

@@ -148,12 +148,14 @@ public class OrderService {
             throw new OrderClosedException("Order with ID " + orderId + " is closed or does not exist.");
         }
 
+        positionDTO.setOrderId(orderId);
+
         // Assuming checkOrderExistsAndOpen throws an exception if the order is closed or does not exist,
         // the following code will only run if the order is open and exists.
 
         // Assign a new UUID for the position
         String uuid = UUID.randomUUID().toString();
-        positionDTO.setPositionNumber(uuid); // Assuming PositionDTO can store the position ID as a String
+        positionDTO.setPositionId(uuid); // Assuming PositionDTO can store the position ID as a String
 
         String sql = "INSERT INTO position (positionsnummer, produktnummer, auftragsnummer, menge) VALUES (?, ?, ?, ?)";
 
@@ -161,7 +163,7 @@ public class OrderService {
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, uuid);
             pstmt.setString(2, positionDTO.getProductId());
-            pstmt.setString(3, orderId); // Use the orderId passed to the method
+            pstmt.setString(3, positionDTO.getOrderId());
             pstmt.setInt(4, positionDTO.getQuantity());
 
             pstmt.executeUpdate();
@@ -357,7 +359,7 @@ public class OrderService {
             
             if (rs.next()) {
                 String status = rs.getString("status");
-                if ("closed".equals(status)) {
+                if ("geschlossen".equals(status)) {
                     throw new OrderClosedException("Order with ID " + orderId + " is closed.");
                 }
                 return true; // Order exists and is open
