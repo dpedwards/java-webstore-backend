@@ -6,6 +6,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import de.webstore.backend.dto.ProductDTO;
 import de.webstore.backend.dto.ProductUpdateDTO;
+import de.webstore.backend.exception.ProductInOrderException;
+import de.webstore.backend.exception.ProductNotFoundException;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -152,64 +154,70 @@ public class ProductService {
 
     /**
      * Deletes a product from the database, ensuring it is not part of any order position.
+     * Throws ProductInOrderException if the product is referenced in any order.
+     * Throws ProductNotFoundException if the product does not exist.
      *
      * @param productId the ID of the product to delete
-     * @return 
+     * @throws ProductInOrderException if the product is part of an order
+     * @throws ProductNotFoundException if the product does not exist
      */
-    public boolean deleteProduct(String productId) {
+    public void deleteProduct(String productId) throws ProductInOrderException, ProductNotFoundException {
         Connection conn = null;
         PreparedStatement checkPositionStmt = null;
         PreparedStatement deleteLagertStmt = null;
         PreparedStatement deleteProduktlagermengeStmt = null;
         PreparedStatement deleteProduktStmt = null;
         ResultSet rs = null;
-        boolean success = false;
-    
-        String checkPositionSql = "SELECT COUNT(*) AS count FROM position WHERE produktnummer = ?";
-        String deleteLagertSql = "DELETE FROM lagert WHERE produkt_fk = ?";
-        String deleteProduktlagermengeSql = "DELETE FROM produktlagermenge WHERE produkt_fk = ?";
-        String deleteProduktSql = "DELETE FROM produkt WHERE produktnummer = ?";
-    
+
         try {
             conn = databaseConnection.getConnection();
             conn.setAutoCommit(false); // Start transaction
-    
-            // Check if product is referenced in any order position
+
+            // Check whether the product is used in any order items
+            String checkPositionSql = "SELECT COUNT(*) AS count FROM position WHERE produktnummer = ?";
             checkPositionStmt = conn.prepareStatement(checkPositionSql);
             checkPositionStmt.setString(1, productId);
             rs = checkPositionStmt.executeQuery();
             if (rs.next() && rs.getInt("count") > 0) {
-                throw new SQLException("Product cannot be deleted as it is present in order positions.");
+                throw new ProductInOrderException("Product cannot be deleted as it occurs in order items.");
             }
-    
+
             // Delete references from 'lagert'
+            String deleteLagertSql = "DELETE FROM lagert WHERE produkt_fk = ?";
             deleteLagertStmt = conn.prepareStatement(deleteLagertSql);
             deleteLagertStmt.setString(1, productId);
             deleteLagertStmt.executeUpdate();
-    
+
             // Delete references from 'produktlagermenge'
+            String deleteProduktlagermengeSql = "DELETE FROM produktlagermenge WHERE produkt_fk = ?";
             deleteProduktlagermengeStmt = conn.prepareStatement(deleteProduktlagermengeSql);
             deleteProduktlagermengeStmt.setString(1, productId);
             deleteProduktlagermengeStmt.executeUpdate();
-    
-            // Now safe to delete the product
+
+            // Deleting the product
+            String deleteProduktSql = "DELETE FROM produkt WHERE produktnummer = ?";
             deleteProduktStmt = conn.prepareStatement(deleteProduktSql);
             deleteProduktStmt.setString(1, productId);
             int affectedRows = deleteProduktStmt.executeUpdate();
             if (affectedRows == 0) {
-                throw new SQLException("No product found with ID: " + productId);
+                throw new ProductNotFoundException("No product with the ID: " + productId + " found.");
             }
-    
+
             conn.commit(); // Commit transaction
-            success = true;
         } catch (SQLException e) {
             try {
-                if (conn != null) conn.rollback(); // Rollback in case of error
+                if (conn != null) conn.rollback(); // Rollback in the event of an error
+                // Depending on the exception, throw an appropriate application-level exception
+                if (e.getMessage().contains("Product cannot be deleted")) {
+                    throw new ProductInOrderException(e.getMessage());
+                } else {
+                    throw new ProductNotFoundException(e.getMessage());
+                }
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
-            e.printStackTrace();
         } finally {
+            // Close all resources
             try {
                 if (rs != null) rs.close();
                 if (checkPositionStmt != null) checkPositionStmt.close();
@@ -224,7 +232,6 @@ public class ProductService {
                 ex.printStackTrace();
             }
         }
-        return success;
     }
 
     /**

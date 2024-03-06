@@ -7,8 +7,12 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
 import de.webstore.backend.dto.ProductDTO;
 import de.webstore.backend.dto.ProductUpdateDTO;
+import de.webstore.backend.exception.ProductInOrderException;
+import de.webstore.backend.exception.ProductNotFoundException;
 import de.webstore.backend.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -167,19 +171,20 @@ public class ProductController {
     @Operation(summary = "Delete a product by its ID", responses = {
         @ApiResponse(responseCode = "200", description = "Product deleted successfully"),
         @ApiResponse(responseCode = "404", description = "Product not found"),
+        @ApiResponse(responseCode = "409", description = "Product cannot be deleted as it is part of an order"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<?> deleteProduct(@PathVariable String productId) {
         try {
-            boolean isDeleted = productService.deleteProduct(productId);
-            if (isDeleted) {
-                return ResponseEntity.ok().body("Product deleted successfully");
-            } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product ID " + productId + " not found.");
-            }
+            productService.deleteProduct(productId);
+            return ResponseEntity.ok().body("Product deleted successfully");
+        } catch (ProductNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (ProductInOrderException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (Exception e) {
-            // Log the exception details here
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the product.");
+            // Log the exception details here for further investigation if needed
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred while deleting the product.", e);
         }
     }
 }
