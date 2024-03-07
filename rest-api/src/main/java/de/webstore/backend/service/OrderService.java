@@ -283,7 +283,7 @@ public class OrderService {
             
             // Deduct stock from 'produktlagermenge' for each product
             for (Map.Entry<String, Integer> entry : stockDeductions.entrySet()) {
-                deductStockForProduct(conn, entry.getKey(), entry.getValue());
+                deductStockForProductAndUpdateLager(conn, entry.getKey(), entry.getValue());
             }
             
             // Close the order
@@ -409,27 +409,21 @@ public class OrderService {
     }
 
     /**
-     * Deducts a specified quantity of stock for a given product from the 'produktlagermenge' table.
-     * This method updates the stock quantity available for the specified product across all warehouses by deducting
-     * the specified quantity. The operation ensures that the total stock quantity across all warehouses reflects
-     * the deduction accurately.
-     * <p>
-     * The method performs a transactional update operation to ensure data consistency. If the specified quantity
-     * is available across the warehouses, it is deducted; otherwise, the method ensures that partial or no deduction
-     * is performed in case of insufficient stock, maintaining data integrity.
-     *
-     * @param conn       The {@link Connection} object representing an active connection to the database. This connection
-     *                   is used to execute the update operation on the 'produktlagermenge' table.
-     * @param productId  The unique identifier of the product for which stock is to be deducted. This ID is used to
-     *                   identify the relevant records in the 'produktlagermenge' table.
-     * @param quantity   The quantity of stock to be deducted. This value is subtracted from the current stock
-     *                   available for the product across all warehouses.
-     * @throws SQLException If an SQL error occurs during the execution of the update operation. This exception indicates
-     *                      issues with the database communication, such as syntax errors in the SQL, problems establishing
-     *                      a connection to the database, or failure in updating the records.
+     * Deducts a specified quantity of stock for a given product from the 'produktlagermenge' table
+     * and updates the 'lager' table with the new total quantities.
+     * 
+     * This method ensures that the stock levels are accurately adjusted in the 'produktlagermenge' table
+     * for the specified product across all warehouses. After deducting the specified quantity from the product's stock,
+     * it calculates the new total stock quantities for each warehouse where the product is stored and updates the 'lager' table accordingly.
+     * 
+     * @param conn The database connection object used for executing SQL statements.
+     * @param productId The unique identifier of the product for which the stock is to be deducted.
+     * @param quantity The amount of stock to be deducted from the product's total stock across all warehouses.
+     * @throws SQLException If an error occurs during the database update operations.
+     * @throws InsufficientStockException If there is not enough stock available for the product to deduct the specified quantity.
      */
-    private void deductStockForProduct(Connection conn, String productId, Integer quantity) throws SQLException {
-        // SQL query to deduct stock for a given product ID from 'produktlagermenge'
+    private void deductStockForProductAndUpdateLager(Connection conn, String productId, Integer quantity) throws SQLException, InsufficientStockException {
+        // SQL query to deduct stock for the specified product ID from 'produktlagermenge'
         String sql = """
             UPDATE produktlagermenge
             SET menge = GREATEST(0, menge - ?)
@@ -440,7 +434,7 @@ public class OrderService {
             pstmt.setInt(1, quantity);
             pstmt.setString(2, productId);
             
-            // Execute the update
+            // Execute the update operation
             int affectedRows = pstmt.executeUpdate();
             
             if (affectedRows == 0) {
@@ -448,8 +442,39 @@ public class OrderService {
                 throw new InsufficientStockException("No stock found for product ID: " + productId + " to deduct.");
             }
             
-            // Optionally, include logic here to update the 'lager' table's 'menge' column
-            // to reflect the total updated stock quantity across all warehouses for the product
+            // Step 1: Calculate the new total quantities for each warehouse associated with the product
+            String queryTotalQuantities = """
+                SELECT lager_fk, SUM(menge) AS totalQuantity
+                FROM produktlagermenge
+                WHERE produkt_fk = ?
+                GROUP BY lager_fk
+            """;
+
+            // Step 2: Prepare to update the 'lager' table with the calculated new totals
+            String updateLager = """
+                UPDATE lager
+                SET menge = ?
+                WHERE lagernummer = ?
+            """;
+
+            try (
+                PreparedStatement pstmtQueryTotals = conn.prepareStatement(queryTotalQuantities);
+                PreparedStatement pstmtUpdateLager = conn.prepareStatement(updateLager)
+            ) {
+                pstmtQueryTotals.setString(1, productId);
+                ResultSet rs = pstmtQueryTotals.executeQuery();
+                
+                // Iterate through the results to update each warehouse's stock total in 'lager'
+                while (rs.next()) {
+                    int lagerFk = rs.getInt("lager_fk");
+                    int totalQuantity = rs.getInt("totalQuantity");
+
+                    // Update the 'lager' table with the new total quantity for the warehouse
+                    pstmtUpdateLager.setInt(1, totalQuantity);
+                    pstmtUpdateLager.setInt(2, lagerFk);
+                    pstmtUpdateLager.executeUpdate();
+                }
+            }
         }
     }
 
