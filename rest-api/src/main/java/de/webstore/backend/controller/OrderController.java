@@ -6,13 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import de.webstore.backend.dto.OrderDTO;
 import de.webstore.backend.dto.PositionDTO;
 import de.webstore.backend.exception.ErrorResponse;
+import de.webstore.backend.exception.InsufficientStockException;
 import de.webstore.backend.exception.OrderClosedException;
 import de.webstore.backend.exception.OrderNotFoundException;
+import de.webstore.backend.exception.PositionNotFoundException;
 import de.webstore.backend.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -122,7 +123,7 @@ public class OrderController {
      * @param positionDTO the position data to add
      * @return a ResponseEntity containing the added PositionDTO on success, or an appropriate error response
      */
-    @PostMapping("/{orderId}/positions")
+    @PostMapping("/{orderId}/add/new/position")
     @Operation(summary = "Add a new position with a product and a quantity to an existing open order", responses = {
             @ApiResponse(responseCode = "200", description = "Position added successfully",
                     content = @Content(mediaType = "application/json",
@@ -164,57 +165,59 @@ public class OrderController {
      * @param positionId the ID of the position to delete
      * @return a ResponseEntity indicating the result of the operation
      */
-    @DeleteMapping("/delete/{orderId}/position/{positionId}")
+    @DeleteMapping("/order/{orderId}/position/{positionId}")
     @Operation(summary = "Delete a position from an order",
-               description = "Deletes a specific position from an order if it exists and belongs to the specified order.",
+               description = "Deletes a specific position from an order if it exists and belongs to the specified order. It ensures the order is not closed.",
                responses = {
-                   @ApiResponse(responseCode = "200", description = "Position successfully deleted",
-                                content = @Content),
-                   @ApiResponse(responseCode = "404", description = "Order or position not found",
-                                content = @Content),
-                   @ApiResponse(responseCode = "500", description = "Internal server error",
-                                content = @Content(schema = @Schema(hidden = true)))
+                   @ApiResponse(responseCode = "200", description = "Position deleted successfully"),
+                   @ApiResponse(responseCode = "404", description = "Position not found or does not belong to the specified order"),
+                   @ApiResponse(responseCode = "409", description = "Order is closed and cannot be modified")
                })
     public ResponseEntity<?> deleteOrderPosition(@PathVariable String orderId, @PathVariable String positionId) {
         try {
             orderService.deleteOrderPosition(orderId, positionId);
             return ResponseEntity.ok().build();
-        } catch (ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
+        } catch (OrderClosedException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+        } catch (PositionNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the position."));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An unexpected error occurred."));
         }
     }
 
     /**
-     * Deletes an order by its ID.
-     * 
-     * Validates if the order exists before attempting deletion. If the order does not exist,
-     * an appropriate error response is returned.
+     * Deletes an order identified by its unique ID. Validates that the order is not already closed before attempting deletion.
+     * If the order is closed or does not exist, appropriate error responses are returned.
      *
-     * @param orderId the ID of the order to delete
-     * @return a ResponseEntity indicating the result of the operation
+     * @param orderId The unique identifier of the order to delete.
+     * @return ResponseEntity indicating the result of the operation with appropriate HTTP status code and body.
+     *         Returns OK (200) if the order was successfully deleted.
+     *         Returns NOT FOUND (404) if the order does not exist.
+     *         Returns CONFLICT (409) if the order is closed and cannot be deleted.
+     *         Returns INTERNAL SERVER ERROR (500) for any other errors during the process.
      */
-    @DeleteMapping("/delete/{orderId}")
+    @DeleteMapping("/order/delete/{orderId}")
     @Operation(summary = "Delete an order",
-               description = "Deletes an order by its ID. If the order does not exist, a not found status is returned.",
+               description = "Deletes an order by its ID. Validates if the order is not closed before deletion. If the order does not exist or is already closed, appropriate error responses are returned.",
                responses = {
-                   @ApiResponse(responseCode = "200", description = "Order successfully deleted",
-                                content = @Content),
-                   @ApiResponse(responseCode = "404", description = "Order not found",
-                                content = @Content),
-                   @ApiResponse(responseCode = "500", description = "Internal server error",
-                                content = @Content(schema = @Schema(hidden = true)))
+                   @ApiResponse(responseCode = "200", description = "Order successfully deleted"),
+                   @ApiResponse(responseCode = "404", description = "Order not found"),
+                   @ApiResponse(responseCode = "409", description = "Order is closed and cannot be deleted"),
+                   @ApiResponse(responseCode = "500", description = "Internal server error")
                })
     public ResponseEntity<?> deleteOrder(@PathVariable String orderId) {
         try {
-            boolean orderExists = orderService.checkOrderExists(orderId);
-            if (!orderExists) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
-            }
             orderService.deleteOrder(orderId);
             return ResponseEntity.ok().build();
+        } catch (OrderNotFoundException e) {
+            // Handling case where the specified order ID does not exist in the database.
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
+        } catch (OrderClosedException e) {
+            // Handling case where the specified order is already closed and cannot be deleted.
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order with ID " + orderId + " is closed and cannot be deleted."));
         } catch (Exception e) {
+            // Handling unexpected exceptions during the deletion process.
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the order."));
         }
     }
@@ -222,7 +225,7 @@ public class OrderController {
     /**
      * Closes an order by its ID, ensuring all preconditions for closing the order are met.
      * 
-     * Responds with OK status if the order is successfully closed. If preconditions are not met or if the order does not exist,
+     * Responds with OK status if the order is successfully closed. If preconditions, such as sufficient stock, are not met, or if the order does not exist,
      * appropriate error responses are returned.
      *
      * @param orderId the ID of the order to close
@@ -230,32 +233,28 @@ public class OrderController {
      */
     @PutMapping("/close/{orderId}")
     @Operation(summary = "Close an order",
-               description = "Closes an order by its ID. Checks for preconditions such as sufficient stock. Returns conflict if preconditions are not met.",
-               responses = {
-                   @ApiResponse(responseCode = "200", description = "Order successfully closed",
-                                content = @Content),
-                   @ApiResponse(responseCode = "404", description = "Order not found",
-                                content = @Content),
-                   @ApiResponse(responseCode = "409", description = "Preconditions for closing the order are not met (e.g., insufficient stock)",
-                                content = @Content),
-                   @ApiResponse(responseCode = "500", description = "Internal server error",
-                                content = @Content(schema = @Schema(hidden = true)))
-               })
+            description = "Closes an order by its ID after verifying all preconditions, such as sufficient stock levels, are met. If the order cannot be closed due to unmet preconditions or if the order does not exist, appropriate error responses are indicated.",
+            responses = {
+                @ApiResponse(responseCode = "200", description = "Order successfully closed"),
+                @ApiResponse(responseCode = "404", description = "Order not found"),
+                @ApiResponse(responseCode = "409", description = "Preconditions for closing the order are not met (e.g., insufficient stock)"),
+                @ApiResponse(responseCode = "500", description = "Internal server error")
+            })
     public ResponseEntity<?> closeOrder(@PathVariable String orderId) {
         try {
-            boolean orderExists = orderService.checkOrderExists(orderId);
-            if (!orderExists) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
-            }
-            
-            boolean isClosed = orderService.closeOrder(orderId);
-            if (isClosed) {
-                return ResponseEntity.ok().build();
-            } else {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order could not be closed due to insufficient stock or other issues."));
-            }
+            // Attempt to close the order
+            orderService.closeOrder(orderId);
+            // If successful, return 200 OK
+            return ResponseEntity.ok().build();
+        } catch (OrderNotFoundException e) {
+            // If the order is not found, return 404 Not Found
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
+        } catch (InsufficientStockException e) {
+            // If preconditions are not met, return 409 Conflict
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order could not be closed due to insufficient stock."));
         } catch (Exception e) {
+            // For any other errors, return 500 Internal Server Error
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while closing the order."));
         }
-    }
+    }    
 }
