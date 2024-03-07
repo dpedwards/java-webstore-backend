@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import de.webstore.backend.dto.WarehouseDTO;
+import de.webstore.backend.exception.ErrorResponse;
 import de.webstore.backend.exception.ProductNotFoundException;
 import de.webstore.backend.service.ProductService;
 import de.webstore.backend.service.WarehouseService;
@@ -114,7 +115,7 @@ public class WarehouseController {
             warehouseService.addProductQuantity(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Failed to add product quantity: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Failed to add product quantity."));
         }
     }
 
@@ -147,14 +148,13 @@ public class WarehouseController {
                 return ResponseEntity.notFound().build(); // 404 for not found resources
             }
             if (quantity <= 0) {
-                return ResponseEntity.badRequest().body("Quantity must be positive");
+                return ResponseEntity.badRequest().body(new ErrorResponse("Quantity must be positive."));
             }
     
             warehouseService.reduceProductQuantity(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            // Consider logging the error here
-            return ResponseEntity.internalServerError().body("Failed to reduce product quantity: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Failed to reduce product quantity."));
         }
     }
 
@@ -176,14 +176,14 @@ public class WarehouseController {
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<Integer> getTotalProductQuantity(@PathVariable String productId) {
+    public ResponseEntity<?> getTotalProductQuantity(@PathVariable String productId) {
         try {
                 int totalQuantity = warehouseService.calculateTotalProductQuantity(productId);
-                return ResponseEntity.ok(totalQuantity);
+                return ResponseEntity.ok().body(totalQuantity);
         } catch (ProductNotFoundException e) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Product ID " + productId + " not found."));
         } catch (Exception e) {
-                return ResponseEntity.internalServerError().body(null);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while getting total product quantity across all warehouses."));
         }
     }
 }

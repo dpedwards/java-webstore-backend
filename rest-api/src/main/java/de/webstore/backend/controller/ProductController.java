@@ -7,10 +7,10 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import de.webstore.backend.dto.ProductDTO;
 import de.webstore.backend.dto.ProductUpdateDTO;
+import de.webstore.backend.exception.ErrorResponse;
 import de.webstore.backend.exception.ProductInOrderException;
 import de.webstore.backend.exception.ProductNotFoundException;
 import de.webstore.backend.service.ProductService;
@@ -78,7 +78,7 @@ public class ProductController {
         if (product != null) {
             return ResponseEntity.ok(product);
         } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product ID " + productId + " not found.");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Product ID " + productId + " not found."));
         }
     }
 
@@ -109,14 +109,14 @@ public class ProductController {
                 return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
             } else {
                 // This case may be redundant if productService.addProduct() handles all validation and exception scenarios
-                return ResponseEntity.badRequest().body("Invalid product data provided");
+                return ResponseEntity.badRequest().body(new ErrorResponse("Invalid product data provided."));
             }
         } catch (IllegalArgumentException e) {
             // Handle validation errors, e.g., missing name, unit, or price
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             // Catch other exceptions, indicating possible internal errors
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while creating the product");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while creating the product."));
         }
     }
 
@@ -146,14 +146,14 @@ public class ProductController {
                 return ResponseEntity.ok(updatedProduct);
             } else {
                 // Product ID not found
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Product ID " + productId + " not found.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Product ID " + productId + " not found."));
             }
         } catch (DataAccessException e) {
             // Database error
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Database error occurred: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Database error occurred: " + e.getMessage()));
         } catch (Exception e) {
             // Other errors
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred: " + e.getMessage()));
         }
     }
 
@@ -177,14 +177,14 @@ public class ProductController {
     public ResponseEntity<?> deleteProduct(@PathVariable String productId) {
         try {
             productService.deleteProduct(productId);
-            return ResponseEntity.ok().body("Product deleted successfully");
+            return ResponseEntity.ok().body("Product deleted successfully.");
         } catch (ProductNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Product ID " + productId + " not found."));
         } catch (ProductInOrderException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Product cannot be deleted as it is part of an order."));
         } catch (Exception e) {
             // Log the exception details here for further investigation if needed
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred while deleting the product.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the product."));
         }
     }
 }

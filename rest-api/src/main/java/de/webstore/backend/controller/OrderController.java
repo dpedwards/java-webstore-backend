@@ -106,7 +106,7 @@ public class OrderController {
                 return ResponseEntity.ok(createdOrder);
             } else {
                 // In case the order creation process fails but does not throw an exception.
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Could not create the order due to an unexpected error.");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Could not create the order due to an unexpected error."));
             }
         } catch (Exception e) {
             // Handling any exception that might occur during the order creation process.
@@ -182,7 +182,7 @@ public class OrderController {
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the position.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the position."));
         }
     }
 
@@ -210,12 +210,12 @@ public class OrderController {
         try {
             boolean orderExists = orderService.checkOrderExists(orderId);
             if (!orderExists) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Order with ID " + orderId + " not found.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
             }
             orderService.deleteOrder(orderId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while deleting the order.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the order."));
         }
     }
 
@@ -245,17 +245,17 @@ public class OrderController {
         try {
             boolean orderExists = orderService.checkOrderExists(orderId);
             if (!orderExists) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Order with ID " + orderId + " not found.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
             }
             
             boolean isClosed = orderService.closeOrder(orderId);
             if (isClosed) {
                 return ResponseEntity.ok().build();
             } else {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Order could not be closed due to insufficient stock or other issues.");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order could not be closed due to insufficient stock or other issues."));
             }
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while closing the order.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while closing the order."));
         }
     }
 }
