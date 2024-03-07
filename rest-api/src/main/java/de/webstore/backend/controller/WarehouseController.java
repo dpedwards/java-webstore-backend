@@ -3,7 +3,6 @@ package de.webstore.backend.controller;
 
 import java.util.List;
 
-import javax.naming.InsufficientResourcesException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -12,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import de.webstore.backend.dto.WarehouseDTO;
 import de.webstore.backend.exception.ErrorResponse;
 import de.webstore.backend.exception.ProductNotFoundException;
-import de.webstore.backend.service.ProductService;
+import de.webstore.backend.exception.ProductOrWarehouseNotFoundException;
 import de.webstore.backend.service.WarehouseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,7 +28,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 public class WarehouseController {
 
     private final WarehouseService warehouseService;
-    private final ProductService productService;
+
 
     /**
      * Constructs a WarehouseController with the specified WarehouseService.
@@ -37,9 +36,8 @@ public class WarehouseController {
      * @param warehouseService the service to handle warehouse operations
      */
     @Autowired
-    public WarehouseController(WarehouseService warehouseService, ProductService productService) {
+    public WarehouseController(WarehouseService warehouseService) {
         this.warehouseService = warehouseService;
-        this.productService = productService;
     }
 
     /**
@@ -110,11 +108,18 @@ public class WarehouseController {
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<?> addProductQuantity(@PathVariable String productId, @PathVariable int warehouseNumber, @org.springframework.web.bind.annotation.RequestBody int quantity) {
+    public ResponseEntity<?> addProductQuantity(@PathVariable String productId, @PathVariable int warehouseNumber, @RequestBody int quantity) {
         try {
-            warehouseService.addProductQuantity(productId, warehouseNumber, quantity);
+            if (quantity <= 0) {
+                throw new IllegalArgumentException("Quantity must be positive.");
+            }
+            warehouseService.addProductQuantityAndUpdateWarehouse(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
-        } catch (Exception e) {
+        } catch (ProductOrWarehouseNotFoundException e) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+            } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Failed to add product quantity."));
         }
     }
@@ -141,23 +146,22 @@ public class WarehouseController {
             @ApiResponse(responseCode = "500", description = "Internal server error occurred while processing the request",
                     content = @Content)
     })
-    public ResponseEntity<?> reduceProductQuantity(@PathVariable String productId, @PathVariable int warehouseNumber, @RequestBody int quantity) throws InsufficientResourcesException {
+    public ResponseEntity<?> reduceProductQuantity(@PathVariable String productId, @PathVariable int warehouseNumber, @RequestBody int quantity) {
         try {
-            // Example validation, assuming productService and warehouseService have methods to check existence
-            if (!productService.exists(productId) || !warehouseService.exists(warehouseNumber)) {
-                return ResponseEntity.notFound().build(); // 404 for not found resources
-            }
             if (quantity <= 0) {
-                return ResponseEntity.badRequest().body(new ErrorResponse("Quantity must be positive."));
+                throw new IllegalArgumentException("Quantity must be positive.");
             }
-    
-            warehouseService.reduceProductQuantity(productId, warehouseNumber, quantity);
+            warehouseService.reduceProductQuantityAndUpdateWarehouse(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
+        } catch (ProductOrWarehouseNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Failed to reduce product quantity."));
         }
     }
-
+    
     /**
      * Retrieves the total quantity of a specific product across all warehouses.
      * 
