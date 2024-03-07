@@ -2,7 +2,9 @@
 package de.webstore.backend.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -257,104 +259,235 @@ public class OrderService {
     }
 
     /**
-     * Closes an order by verifying product availability against requested quantities,
-     * and if all conditions are met, reduces stock levels across warehouses and updates the order's status to 'closed'.
-     * This operation is atomic, ensuring that adjustments are only made if the order can be successfully closed,
-     * otherwise, the operation is rolled back to maintain data integrity.
-     * 
-     * @param orderId The unique identifier of the order to be closed.
-     * @return {@code true} if the order was successfully closed, indicating that all products were available
-     *         in sufficient quantities and the stock levels have been adjusted accordingly. Returns {@code false}
-     *         if the order cannot be closed due to insufficient stock for one or more products, in which case
-     *         no changes are made to the database.
-     * @throws InsufficientStockException if there is not enough stock available to fulfill the order.
-     * @throws OrderNotFoundException if the specified order ID does not match any existing order.
-     * @throws SQLException if any database operations fail during the process.
-     * @throws RuntimeException for any unexpected errors that occur during the method execution.
+     * Attempts to close an order by verifying if sufficient stock exists across warehouses for each product
+     * in the order and deducting the necessary quantities if possible.
+     *
+     * @param orderId The ID of the order to close.
+     * @return true if the order was successfully closed, false otherwise.
+     * @throws OrderNotFoundException if the order ID does not exist.
+     * @throws InsufficientStockException if there isn't enough stock to fulfill the order.
      */
     public boolean closeOrder(String orderId) throws OrderNotFoundException, InsufficientStockException {
         Connection conn = null;
-        PreparedStatement pstmtCheckAvailability = null;
-        PreparedStatement pstmtUpdateStock = null;
-        PreparedStatement pstmtCloseOrder = null;
-        ResultSet rs = null;
-
         try {
             conn = databaseConnection.getConnection();
-            conn.setAutoCommit(false); // Begin transaction
-
-            // Step 1: Calculate the total available stock for each product in the order
-            String checkAvailabilitySql = """
-                SELECT p.produktnummer, SUM(p.menge) AS orderedQuantity, SUM(pl.menge) AS availableQuantity
-                FROM position p
-                JOIN produktlagermenge pl ON p.produktnummer = pl.produkt_fk
-                WHERE p.auftragsnummer = ?
-                GROUP BY p.produktnummer
-                HAVING orderedQuantity > availableQuantity""";
-
-            pstmtCheckAvailability = conn.prepareStatement(checkAvailabilitySql);
-            pstmtCheckAvailability.setString(1, orderId);
-            rs = pstmtCheckAvailability.executeQuery();
-
-            if (rs.next()) {
-                // Insufficient stock is available for at least one product
-                throw new InsufficientStockException("Insufficient stock available for the order.");
+            conn.setAutoCommit(false);
+            
+            // Verify if the order exists and is not already closed
+            if (!isOrderOpen(conn, orderId)) {
+                throw new OrderNotFoundException("Order not found or already closed: " + orderId);
             }
-
-            // Step 2: Reduce stock quantities in 'produktlagermenge' and update 'lager' accordingly
-            String updateStockSql = """
-                UPDATE produktlagermenge pl
-                INNER JOIN position p ON pl.produkt_fk = p.produktnummer
-                SET pl.menge = pl.menge - p.menge
-                WHERE p.auftragsnummer = ?""";
-
-            pstmtUpdateStock = conn.prepareStatement(updateStockSql);
-            pstmtUpdateStock.setString(1, orderId);
-            pstmtUpdateStock.executeUpdate();
-
-            // Step 3: Change the order status to 'closed'
-            String closeOrderSql = "UPDATE auftrag SET status = 'geschlossen' WHERE auftragsnummer = ?";
-            pstmtCloseOrder = conn.prepareStatement(closeOrderSql);
-            pstmtCloseOrder.setString(1, orderId);
-            pstmtCloseOrder.executeUpdate();
-
-            conn.commit(); // Commit transaction
+            
+            // Check and prepare stock deduction for each product in the order
+            Map<String, Integer> stockDeductions = prepareStockDeductions(conn, orderId);
+            
+            // Deduct stock from 'produktlagermenge' for each product
+            for (Map.Entry<String, Integer> entry : stockDeductions.entrySet()) {
+                deductStockForProduct(conn, entry.getKey(), entry.getValue());
+            }
+            
+            // Close the order
+            closeOrderInDatabase(conn, orderId);
+            
+            conn.commit();
             return true;
         } catch (SQLException e) {
             try {
-                if (conn != null) conn.rollback(); // Rollback transaction in case of error
+                if (conn != null) conn.rollback();
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
             e.printStackTrace();
             return false;
         } finally {
-            // Ensure resources are closed
-            closeResources(rs, new PreparedStatement[]{pstmtCheckAvailability, pstmtUpdateStock, pstmtCloseOrder}, conn);
+            if (conn != null) {
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+	
+    /**
+     * Checks if a given order exists in the database and if its status is "open".
+     * <p>
+     * This method queries the database to verify the existence of an order by its ID. It then checks
+     * if the status of the order is "open", indicating that it has not yet been closed and is
+     * eligible for further modifications or processing.
+     * <p>
+     * @param conn The {@link Connection} object representing an active connection to the database.
+     *             This connection is used to execute the query to check the order's status.
+     * @param orderId The unique identifier of the order to be checked. This ID is used in the query
+     *                to fetch the specific order from the database.
+     * @return {@code true} if the order exists and its status is "open", {@code false} otherwise.
+     *         If the order does not exist, or if it exists but its status is not "open", this method
+     *         returns {@code false}.
+     * @throws SQLException If an SQL error occurs while executing the query. This exception is thrown
+     *         if there are issues communicating with the database, such as syntax errors in the SQL
+     *         query, problems with the database connection, or other related errors.
+     */
+    private boolean isOrderOpen(Connection conn, String orderId) throws SQLException {
+        // SQL query to check if the order exists and its status is "open"
+        String query = "SELECT COUNT(*) FROM auftrag WHERE auftragsnummer = ? AND status = 'offen'";
+        
+        try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, orderId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    // If the query returns a count greater than 0, the order is open
+                    return rs.getInt(1) > 0;
+                }
+            }
+        }
+        // If the order does not exist or is not open, return false
+        return false;
+    }
+
+    /**
+     * Prepares a map of stock deductions required for each product in an order based on the product's ID.
+     * This method calculates the total quantity needed for each product in the order by comparing it against
+     * the available stock quantities in the 'produktlagermenge' table.
+     * <p>
+     * The method iterates through each product in the order, sums up the required quantity (from the 'position' table),
+     * and checks it against the available stock in the 'produktlagermenge'. If the required quantity exceeds the available
+     * stock for any product, an {@link InsufficientStockException} is thrown, indicating that the order cannot be fulfilled.
+     * 
+     * @param conn    The {@link Connection} object representing an active connection to the database. This connection is
+     *                used to execute SQL queries to fetch order details and check stock availability.
+     * @param orderId The unique identifier of the order for which stock deductions are being prepared.
+     * @return A {@link Map} where each key is a product ID (as {@link String}) and each value is the integer quantity of stock
+     *         to be deducted.
+     * @throws SQLException If an SQL error occurs while executing queries. This exception indicates issues with the database
+     *         communication, such as syntax errors in the SQL, problems establishing a connection to the database, etc.
+     * @throws InsufficientStockException If there is not enough stock available to fulfill the order. This exception includes
+     *         details about the product(s) for which the available stock is insufficient to meet the order requirements.
+     */
+    private Map<String, Integer> prepareStockDeductions(Connection conn, String orderId) throws SQLException, InsufficientStockException {
+        Map<String, Integer> deductions = new HashMap<>();
+        
+        // SQL to get total required quantity for each product in the order
+        String requiredQuantitySql = """
+            SELECT p.produktnummer, SUM(p.menge) AS requiredQuantity
+            FROM position p
+            WHERE p.auftragsnummer = ?
+            GROUP BY p.produktnummer""";
+        
+        // SQL to get available stock for each product
+        String availableStockSql = """
+            SELECT produkt_fk, SUM(menge) AS availableQuantity
+            FROM produktlagermenge
+            WHERE produkt_fk = ?""";
+        
+        try (PreparedStatement requiredStmt = conn.prepareStatement(requiredQuantitySql)) {
+            requiredStmt.setString(1, orderId);
+            try (ResultSet requiredRs = requiredStmt.executeQuery()) {
+                while (requiredRs.next()) {
+                    String productId = requiredRs.getString("produktnummer");
+                    int requiredQuantity = requiredRs.getInt("requiredQuantity");
+
+                    try (PreparedStatement availableStmt = conn.prepareStatement(availableStockSql)) {
+                        availableStmt.setString(1, productId);
+                        try (ResultSet availableRs = availableStmt.executeQuery()) {
+                            if (availableRs.next()) {
+                                int availableQuantity = availableRs.getInt("availableQuantity");
+                                if (requiredQuantity > availableQuantity) {
+                                    throw new InsufficientStockException("Insufficient stock for product ID: " + productId);
+                                }
+                                // Prepare deduction amount
+                                deductions.put(productId, requiredQuantity);
+                            } else {
+                                throw new InsufficientStockException("Product ID: " + productId + " not found in stock.");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return deductions;
+    }
+
+    /**
+     * Deducts a specified quantity of stock for a given product from the 'produktlagermenge' table.
+     * This method updates the stock quantity available for the specified product across all warehouses by deducting
+     * the specified quantity. The operation ensures that the total stock quantity across all warehouses reflects
+     * the deduction accurately.
+     * <p>
+     * The method performs a transactional update operation to ensure data consistency. If the specified quantity
+     * is available across the warehouses, it is deducted; otherwise, the method ensures that partial or no deduction
+     * is performed in case of insufficient stock, maintaining data integrity.
+     *
+     * @param conn       The {@link Connection} object representing an active connection to the database. This connection
+     *                   is used to execute the update operation on the 'produktlagermenge' table.
+     * @param productId  The unique identifier of the product for which stock is to be deducted. This ID is used to
+     *                   identify the relevant records in the 'produktlagermenge' table.
+     * @param quantity   The quantity of stock to be deducted. This value is subtracted from the current stock
+     *                   available for the product across all warehouses.
+     * @throws SQLException If an SQL error occurs during the execution of the update operation. This exception indicates
+     *                      issues with the database communication, such as syntax errors in the SQL, problems establishing
+     *                      a connection to the database, or failure in updating the records.
+     */
+    private void deductStockForProduct(Connection conn, String productId, Integer quantity) throws SQLException {
+        // SQL query to deduct stock for a given product ID from 'produktlagermenge'
+        String sql = """
+            UPDATE produktlagermenge
+            SET menge = GREATEST(0, menge - ?)
+            WHERE produkt_fk = ?
+            """;
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, quantity);
+            pstmt.setString(2, productId);
+            
+            // Execute the update
+            int affectedRows = pstmt.executeUpdate();
+            
+            if (affectedRows == 0) {
+                // If no rows were affected, it indicates that the product does not exist in 'produktlagermenge'
+                throw new InsufficientStockException("No stock found for product ID: " + productId + " to deduct.");
+            }
+            
+            // Optionally, include logic here to update the 'lager' table's 'menge' column
+            // to reflect the total updated stock quantity across all warehouses for the product
         }
     }
 
     /**
-     * Closes JDBC resources including ResultSet, PreparedStatements, and Connection.
-     * This method ensures that all database resources are properly closed to prevent resource leaks.
-     * It also restores the auto-commit mode to its default state before closing the connection.
+     * Updates the status of an order to 'closed' in the database.
+     * <p>
+     * This method marks an order as closed by updating its status in the 'auftrag' table. It is a crucial
+     * step in the process of closing an order, signifying that the order has been fully processed and
+     * no further modifications to it are allowed. This change is committed to the database to reflect
+     * the final state of the order.
+     * <p>
+     * The method uses a JDBC {@link Connection} to execute an SQL update command that sets the order's
+     * status to 'geschlossen' for the specified order ID. It assumes that the connection is already
+     * open and managed externally, allowing for transaction control and potential rollback in case
+     * of errors or business logic requirements not being met.
      *
-     * @param rs         The ResultSet to be closed. Can be null if there's no ResultSet to close.
-     * @param statements An array of PreparedStatements to be closed. Can include multiple statements or be null if there are none.
-     * @param conn       The Connection to be closed. Can be null if there's no Connection to close.
+     * @param conn    The {@link Connection} object representing an active connection to the database.
+     *                This connection is used to execute the update operation on the 'auftrag' table.
+     * @param orderId The unique identifier of the order to be closed. This ID is used to locate the
+     *                specific order record in the 'auftrag' table.
+     * @throws SQLException If an SQL error occurs during the execution of the update operation. This
+     *                      exception signals issues such as problems with the SQL syntax, failure in
+     *                      establishing a connection to the database, or issues in updating the record.
      */
-    private void closeResources(ResultSet rs, PreparedStatement[] statements, Connection conn) {
-        try {
-            if (rs != null) rs.close(); // Close ResultSet if not null
-            for (PreparedStatement stmt : statements) { // Loop through and close each PreparedStatement
-                if (stmt != null) stmt.close();
+    private void closeOrderInDatabase(Connection conn, String orderId) throws SQLException {
+        // SQL query to update the order status to 'closed'
+        String sql = "UPDATE auftrag SET status = 'geschlossen' WHERE auftragsnummer = ?";
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, orderId);
+            
+            // Execute the update
+            int affectedRows = pstmt.executeUpdate();
+            
+            if (affectedRows == 0) {
+                // If no rows were affected, it implies that the order ID does not exist in the database
+                throw new OrderNotFoundException("Failed to close order. Order ID " + orderId + " not found.");
             }
-            if (conn != null) {
-                conn.setAutoCommit(true); // Restore auto-commit mode
-                conn.close(); // Close connection
-            }
-        } catch (SQLException e) {
-            e.printStackTrace(); // Log SQLException
         }
     }
 
@@ -378,7 +511,6 @@ public class OrderService {
             }
         } catch (SQLException e) {
             System.out.println("Error checking order existence: " + e.getMessage());
-            // Consider appropriate exception handling strategy
         }
         return false;
     }
