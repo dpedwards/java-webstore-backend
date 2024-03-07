@@ -395,8 +395,6 @@ public class WarehouseService {
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
-            // It may be appropriate to rethrow the exception as a custom unchecked exception
-            // or handle it based on your application's error handling policies.
         }
     }
 }
