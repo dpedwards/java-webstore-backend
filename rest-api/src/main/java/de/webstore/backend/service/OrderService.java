@@ -258,27 +258,19 @@ public class OrderService {
 
     /**
      * Closes an order by verifying product availability against requested quantities,
-     * and if all conditions are met, reduces stock levels and updates the order's status to 'closed'.
-     * This operation is atomic, ensuring that stock levels are only adjusted if the order can be successfully closed,
+     * and if all conditions are met, reduces stock levels across warehouses and updates the order's status to 'closed'.
+     * This operation is atomic, ensuring that adjustments are only made if the order can be successfully closed,
      * otherwise, the operation is rolled back to maintain data integrity.
      * 
-     * <p>This method demonstrates a transactional approach using JDBC, ensuring that all database
-     * operations related to closing the order are either completely executed or completely rolled back.
-     * 
-     * @param orderId The unique identifier of the order to be closed. Must correspond to an existing order.
+     * @param orderId The unique identifier of the order to be closed.
      * @return {@code true} if the order was successfully closed, indicating that all products were available
      *         in sufficient quantities and the stock levels have been adjusted accordingly. Returns {@code false}
      *         if the order cannot be closed due to insufficient stock for one or more products, in which case
      *         no changes are made to the database.
-     * @throws InsufficientStockException if there is not enough stock available to fulfill the order. This exception
-     *         contains details about the shortfall.
+     * @throws InsufficientStockException if there is not enough stock available to fulfill the order.
      * @throws OrderNotFoundException if the specified order ID does not match any existing order.
-     * @throws SQLException if any database operations fail during the process. This includes failures in checking
-     *         product availability, updating stock levels, or changing the order status. This exception is a
-     *         general indication of a failure in database operations.
-     * @throws RuntimeException if unexpected errors occur during the operation. This is a catch-all for any
-     *         other exceptions that might be thrown during the execution of this method and indicates that
-     *         the operation could not be completed due to unforeseen errors.
+     * @throws SQLException if any database operations fail during the process.
+     * @throws RuntimeException for any unexpected errors that occur during the method execution.
      */
     public boolean closeOrder(String orderId) throws OrderNotFoundException, InsufficientStockException {
         Connection conn = null;
@@ -286,12 +278,12 @@ public class OrderService {
         PreparedStatement pstmtUpdateStock = null;
         PreparedStatement pstmtCloseOrder = null;
         ResultSet rs = null;
-    
+
         try {
             conn = databaseConnection.getConnection();
-            conn.setAutoCommit(false);
-    
-            // Step 1: Verify stock availability for each product in the order
+            conn.setAutoCommit(false); // Begin transaction
+
+            // Step 1: Calculate the total available stock for each product in the order
             String checkAvailabilitySql = """
                 SELECT p.produktnummer, SUM(p.menge) AS orderedQuantity, SUM(pl.menge) AS availableQuantity
                 FROM position p
@@ -299,79 +291,70 @@ public class OrderService {
                 WHERE p.auftragsnummer = ?
                 GROUP BY p.produktnummer
                 HAVING orderedQuantity > availableQuantity""";
-    
+
             pstmtCheckAvailability = conn.prepareStatement(checkAvailabilitySql);
             pstmtCheckAvailability.setString(1, orderId);
             rs = pstmtCheckAvailability.executeQuery();
-    
+
             if (rs.next()) {
-                // Insufficient stock available for at least one product
+                // Insufficient stock is available for at least one product
                 throw new InsufficientStockException("Insufficient stock available for the order.");
             }
-    
-            // Step 2: Reduce stock quantities in 'produktlagermenge' and update total quantity in 'lager'
+
+            // Step 2: Reduce stock quantities in 'produktlagermenge' and update 'lager' accordingly
             String updateStockSql = """
                 UPDATE produktlagermenge pl
                 INNER JOIN position p ON pl.produkt_fk = p.produktnummer
                 SET pl.menge = pl.menge - p.menge
                 WHERE p.auftragsnummer = ?""";
-    
+
             pstmtUpdateStock = conn.prepareStatement(updateStockSql);
             pstmtUpdateStock.setString(1, orderId);
             pstmtUpdateStock.executeUpdate();
-    
-            // Step 3: Update order status to 'closed'
+
+            // Step 3: Change the order status to 'closed'
             String closeOrderSql = "UPDATE auftrag SET status = 'geschlossen' WHERE auftragsnummer = ?";
             pstmtCloseOrder = conn.prepareStatement(closeOrderSql);
             pstmtCloseOrder.setString(1, orderId);
             pstmtCloseOrder.executeUpdate();
-    
-            conn.commit();
+
+            conn.commit(); // Commit transaction
             return true;
         } catch (SQLException e) {
             try {
-                if (conn != null) conn.rollback(); // Rollback in case of an error
+                if (conn != null) conn.rollback(); // Rollback transaction in case of error
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
             e.printStackTrace();
             return false;
         } finally {
-            // Close all JDBC resources including ResultSet, PreparedStatements, and Connection
+            // Ensure resources are closed
             closeResources(rs, new PreparedStatement[]{pstmtCheckAvailability, pstmtUpdateStock, pstmtCloseOrder}, conn);
         }
     }
-    
+
     /**
      * Closes JDBC resources including ResultSet, PreparedStatements, and Connection.
      * This method ensures that all database resources are properly closed to prevent resource leaks.
      * It also restores the auto-commit mode to its default state before closing the connection.
      *
      * @param rs         The ResultSet to be closed. Can be null if there's no ResultSet to close.
-     * @param statements An array of PreparedStatements to be closed. It can include multiple statements or be null if there are none.
+     * @param statements An array of PreparedStatements to be closed. Can include multiple statements or be null if there are none.
      * @param conn       The Connection to be closed. Can be null if there's no Connection to close.
      */
     private void closeResources(ResultSet rs, PreparedStatement[] statements, Connection conn) {
         try {
-            // Attempt to close the ResultSet if it's not null.
-            if (rs != null) {
-                rs.close();
+            if (rs != null) rs.close(); // Close ResultSet if not null
+            for (PreparedStatement stmt : statements) { // Loop through and close each PreparedStatement
+                if (stmt != null) stmt.close();
             }
-            // Loop through each PreparedStatement and close it if it's not null.
-            for (PreparedStatement stmt : statements) {
-                if (stmt != null) {
-                    stmt.close();
-                }
-            }
-            // Check if the Connection is not null and close it.
-            // Before closing, it restores the auto-commit mode to true, the default state.
             if (conn != null) {
-                conn.setAutoCommit(true); // Restore auto-commit before closing
-                conn.close();
+                conn.setAutoCommit(true); // Restore auto-commit mode
+                conn.close(); // Close connection
             }
         } catch (SQLException e) {
-            // Print the stack trace of any SQLException that occurs during the closing process.
-            e.printStackTrace();
+            e.printStackTrace(); // Log SQLException
         }
     }
 
