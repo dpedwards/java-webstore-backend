@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import de.webstore.backend.dto.WarehouseDTO;
 import de.webstore.backend.exception.ErrorResponse;
 import de.webstore.backend.exception.ProductNotFoundException;
-import de.webstore.backend.exception.ProductOrWarehouseNotFoundException;
+import de.webstore.backend.exception.WarehouseNotFoundException;
 import de.webstore.backend.service.WarehouseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -115,7 +115,7 @@ public class WarehouseController {
             }
             warehouseService.addProductQuantityAndUpdateWarehouse(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
-        } catch (ProductOrWarehouseNotFoundException e) {
+        } catch (WarehouseNotFoundException e) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
@@ -153,7 +153,7 @@ public class WarehouseController {
             }
             warehouseService.reduceProductQuantityAndUpdateWarehouse(productId, warehouseNumber, quantity);
             return ResponseEntity.ok().build();
-        } catch (ProductOrWarehouseNotFoundException e) {
+        } catch (WarehouseNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));

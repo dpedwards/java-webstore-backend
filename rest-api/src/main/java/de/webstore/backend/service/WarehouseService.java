@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import de.webstore.backend.config.DatabaseConnection;
 import de.webstore.backend.dto.WarehouseDTO;
-import de.webstore.backend.exception.ProductOrWarehouseNotFoundException;
+import de.webstore.backend.exception.WarehouseNotFoundException;
 import de.webstore.backend.exception.ProductNotFoundException;
 
 /**
@@ -134,7 +134,7 @@ public class WarehouseService {
 
             // Check if product and warehouse exist
             if (productAndWarehouseExist(productId, warehouseNumber)) {
-                throw new ProductOrWarehouseNotFoundException("Product or warehouse not found");
+                throw new WarehouseNotFoundException("Product or warehouse not found");
             }
 
             // Update the product quantity in the warehouse
@@ -216,7 +216,7 @@ public class WarehouseService {
 
             // Check if product and warehouse exist
             if (!productAndWarehouseExist(productId, warehouseNumber)) {
-                throw new ProductOrWarehouseNotFoundException("Product or warehouse not found.");
+                throw new WarehouseNotFoundException("Product or warehouse not found.");
             }
 
             // Reduce the product quantity in the warehouse
