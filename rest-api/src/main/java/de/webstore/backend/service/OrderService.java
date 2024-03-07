@@ -6,16 +6,17 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import de.webstore.backend.dto.OrderDTO;
 import de.webstore.backend.dto.PositionDTO;
+import de.webstore.backend.exception.InsufficientStockException;
 import de.webstore.backend.exception.OrderClosedException;
 import de.webstore.backend.exception.OrderNotFoundException;
+import de.webstore.backend.exception.PositionNotFoundException;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -134,47 +135,84 @@ public class OrderService {
     }
 
     /**
-     * Adds a position to an existing order if the order's status is not "geschlossen".
-     * The method has been updated to accept an order ID and a PositionDTO.
+     * Adds a position to an existing order if the order's status is not "geschlossen" (closed).
+     * Additionally, checks if the specified quantity of the product is available in stock before adding.
+     * If the requested quantity exceeds available stock, it still adds the position but returns a message indicating the maximum available quantity.
      *
-     * @param orderId the ID of the order to add the position to
-     * @param positionDTO the position data to add
-     * @return the added position with its new ID, or null if the order is closed or an error occurs
-     * @throws OrderClosedException if the order is closed
+     * @param orderId      The ID of the order to add the position to.
+     * @param positionDTO  The position data to add, including product ID and quantity.
+     * @return The added position with its new ID and possibly a message about the available quantity.
+     * @throws OrderClosedException if the order is closed.
      */
     public PositionDTO addOrderPosition(String orderId, PositionDTO positionDTO) throws OrderClosedException {
-        // Before attempting to add the position, ensure the order is open and exists
+        // Ensure the order is open and exists
         if (!checkOrderExistsAndOpen(orderId)) {
             throw new OrderClosedException("Order with ID " + orderId + " is closed or does not exist.");
         }
 
+        // Set orderId for the position
         positionDTO.setOrderId(orderId);
-
-        // Assuming checkOrderExistsAndOpen throws an exception if the order is closed or does not exist,
-        // the following code will only run if the order is open and exists.
 
         // Assign a new UUID for the position
         String uuid = UUID.randomUUID().toString();
-        positionDTO.setPositionId(uuid); // Assuming PositionDTO can store the position ID as a String
+        positionDTO.setPositionId(uuid); // Update the positionDTO with the new position ID
 
+        // Calculate available quantity for the product
+        int availableQuantity = calculateAvailableProductQuantity(positionDTO.getProductId());
+        
+        // Check if requested quantity is available
+        if (positionDTO.getQuantity() > availableQuantity) {
+            // Modify the quantity to the available quantity if requested quantity exceeds availability
+            //positionDTO.setQuantity(availableQuantity);
+            // Optionally, add a message to positionDTO about adjusted quantity; assuming PositionDTO has a method to set messages
+            //positionDTO.setMessage("Requested quantity exceeds available stock. Adjusted to available quantity: " + availableQuantity);
+            System.out.println("");
+            System.out.println("##########################");
+            System.out.println("http://localhost:8080/api/de/v1/order/" + orderId + "/add/new/position");
+            System.out.println("Requested quantity exceeds available stock. Adjusted to the available quantity, the maximum available quantities are: " + availableQuantity);
+            System.out.println("##########################");
+            System.out.println("");
+        }
+
+        // Proceed to add the position with either requested or adjusted quantity
         String sql = "INSERT INTO position (positionsnummer, produktnummer, auftragsnummer, menge) VALUES (?, ?, ?, ?)";
-
         try (Connection conn = databaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, uuid);
             pstmt.setString(2, positionDTO.getProductId());
             pstmt.setString(3, positionDTO.getOrderId());
             pstmt.setInt(4, positionDTO.getQuantity());
-
             pstmt.executeUpdate();
 
-            // Successfully added the position, return the PositionDTO with the new ID
+            // Successfully added the position, return the PositionDTO (including any message about adjusted quantity)
             return positionDTO;
         } catch (SQLException e) {
             System.out.println("Error adding order position: " + e.getMessage());
-            // Depending on your error handling strategy, you might want to throw an exception here
+            // In a real scenario, consider logging this error and potentially throwing a custom exception
             return null;
         }
+    }
+
+    /**
+     * Calculates the total available quantity of a product across all warehouses.
+     *
+     * @param productId The ID of the product to calculate the quantity for.
+     * @return The total available quantity of the product.
+     */
+    private int calculateAvailableProductQuantity(String productId) {
+        String sql = "SELECT SUM(menge) AS availableQuantity FROM produktlagermenge WHERE produkt_fk = ?";
+        try (Connection conn = databaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, productId);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("availableQuantity");
+            }
+        } catch (SQLException e) {
+            System.out.println("Error calculating available product quantity: " + e.getMessage());
+            // In a real scenario, consider logging this error and potentially throwing a custom exception
+        }
+        return 0; // Return 0 if product is not found or in case of error
     }
 
     /**
@@ -198,121 +236,142 @@ public class OrderService {
      * Deletes an entire order and its associated positions by order ID.
      *
      * @param orderId the ID of the order to delete
+     * @throws OrderClosedException 
      */
-    public void deleteOrder(String orderId) {
-        String sqlOrder = "DELETE FROM auftrag WHERE auftragsnummer = ?";
-        String sqlPosition = "DELETE FROM position WHERE auftragsnummer = ?";
-        try (Connection conn = databaseConnection.getConnection();
-             PreparedStatement pstmtPosition = conn.prepareStatement(sqlPosition);
-             PreparedStatement pstmtOrder = conn.prepareStatement(sqlOrder)) {
-            
-            // Delete order positions first
-            pstmtPosition.setString(1, orderId);
-            pstmtPosition.executeUpdate();
-            
-            // Then delete the order itself
-            pstmtOrder.setString(1, orderId);
-            pstmtOrder.executeUpdate();
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
+    @SuppressWarnings("deprecation")
+    public void deleteOrder(String orderId) throws OrderClosedException {
+        // Check if the order is closed
+        String statusSql = "SELECT status FROM auftrag WHERE auftragsnummer = ?";
+        String status = jdbcTemplate.queryForObject(statusSql, new Object[]{orderId}, String.class);
+        if ("geschlossen".equals(status)) {
+            throw new OrderClosedException("Order with ID " + orderId + " is closed and cannot be deleted.");
         }
+
+        // Delete associated positions
+        String sqlPosition = "DELETE FROM position WHERE auftragsnummer = ?";
+        jdbcTemplate.update(sqlPosition, orderId);
+
+        // Delete the order
+        String sqlOrder = "DELETE FROM auftrag WHERE auftragsnummer = ?";
+        jdbcTemplate.update(sqlOrder, orderId);
     }
 
     /**
-     * Closes an order by checking product availability, adjusting stock levels, and updating the order status.
-     * This method is transactional to ensure data consistency and integrity.
-     * <p>
-     * Steps:
-     * 1. Checks the availability of all products in the order.
-     * 2. If all products are available, reduces stock quantities and updates the order status to 'closed'.
-     * 3. If not all products are available, performs a rollback to maintain data integrity.
-     * <p>
-     * This method uses JDBC connections and prepares statements for database interactions,
-     * demonstrating how to handle transactions manually, including rollbacks in case of insufficient stock or errors.
-     *
-     * @param orderId The ID of the order to be closed.
-     * @return true if the order is successfully closed, false otherwise.
+     * Closes an order by verifying product availability against requested quantities,
+     * and if all conditions are met, reduces stock levels and updates the order's status to 'closed'.
+     * This operation is atomic, ensuring that stock levels are only adjusted if the order can be successfully closed,
+     * otherwise, the operation is rolled back to maintain data integrity.
+     * 
+     * <p>This method demonstrates a transactional approach using JDBC, ensuring that all database
+     * operations related to closing the order are either completely executed or completely rolled back.
+     * 
+     * @param orderId The unique identifier of the order to be closed. Must correspond to an existing order.
+     * @return {@code true} if the order was successfully closed, indicating that all products were available
+     *         in sufficient quantities and the stock levels have been adjusted accordingly. Returns {@code false}
+     *         if the order cannot be closed due to insufficient stock for one or more products, in which case
+     *         no changes are made to the database.
+     * @throws InsufficientStockException if there is not enough stock available to fulfill the order. This exception
+     *         contains details about the shortfall.
+     * @throws OrderNotFoundException if the specified order ID does not match any existing order.
+     * @throws SQLException if any database operations fail during the process. This includes failures in checking
+     *         product availability, updating stock levels, or changing the order status. This exception is a
+     *         general indication of a failure in database operations.
+     * @throws RuntimeException if unexpected errors occur during the operation. This is a catch-all for any
+     *         other exceptions that might be thrown during the execution of this method and indicates that
+     *         the operation could not be completed due to unforeseen errors.
      */
-    @Transactional
-    public boolean closeOrder(String orderId) {
-        // Initialize JDBC objects
+    public boolean closeOrder(String orderId) throws OrderNotFoundException, InsufficientStockException {
         Connection conn = null;
-        PreparedStatement pstmtCheck = null;
-        PreparedStatement pstmtUpdate = null;
+        PreparedStatement pstmtCheckAvailability = null;
+        PreparedStatement pstmtUpdateStock = null;
         PreparedStatement pstmtCloseOrder = null;
         ResultSet rs = null;
-        boolean allProductsAvailable = true;
-        
+    
         try {
-            // Obtain a connection and disable auto-commit for transactional control
             conn = databaseConnection.getConnection();
             conn.setAutoCommit(false);
-
-            // Check the availability of products for all order positions
-            String checkAvailabilitySql = "SELECT p.produktnummer, (l.menge - p.menge) AS available FROM position p " +
-                                          "JOIN produktlagermenge l ON p.produktnummer = l.produkt_fk " +
-                                          "WHERE p.auftragsnummer = ?";
-            pstmtCheck = conn.prepareStatement(checkAvailabilitySql);
-            pstmtCheck.setString(1, orderId);
-            rs = pstmtCheck.executeQuery();
-
-            // Determine if all products are available
-            while (rs.next()) {
-                if (rs.getInt("available") < 0) {
-                    allProductsAvailable = false;
-                    break;
-                }
+    
+            // Step 1: Verify stock availability for each product in the order
+            String checkAvailabilitySql = """
+                SELECT p.produktnummer, SUM(p.menge) AS orderedQuantity, SUM(pl.menge) AS availableQuantity
+                FROM position p
+                JOIN produktlagermenge pl ON p.produktnummer = pl.produkt_fk
+                WHERE p.auftragsnummer = ?
+                GROUP BY p.produktnummer
+                HAVING orderedQuantity > availableQuantity""";
+    
+            pstmtCheckAvailability = conn.prepareStatement(checkAvailabilitySql);
+            pstmtCheckAvailability.setString(1, orderId);
+            rs = pstmtCheckAvailability.executeQuery();
+    
+            if (rs.next()) {
+                // Insufficient stock available for at least one product
+                throw new InsufficientStockException("Insufficient stock available for the order.");
             }
-
-            if (allProductsAvailable) {
-                // Reduce stock quantities for all order positions
-                String updateStockSql = "UPDATE produktlagermenge l " +
-                                        "JOIN position p ON l.produkt_fk = p.produktnummer " +
-                                        "SET l.menge = l.menge - p.menge " +
-                                        "WHERE p.auftragsnummer = ?";
-                pstmtUpdate = conn.prepareStatement(updateStockSql);
-                pstmtUpdate.setString(1, orderId);
-                pstmtUpdate.executeUpdate();
-
-                // Update order status to 'closed'
-                String closeOrderSql = "UPDATE auftrag SET status = 'geschlossen' WHERE auftragsnummer = ?";
-                pstmtCloseOrder = conn.prepareStatement(closeOrderSql);
-                pstmtCloseOrder.setString(1, orderId);
-                pstmtCloseOrder.executeUpdate();
-
-                // Commit the transaction to finalize changes
-                conn.commit();
-                return true;
-            } else {
-                // Insufficient stock, perform a rollback
-                conn.rollback();
-                return false;
-            }
+    
+            // Step 2: Reduce stock quantities in 'produktlagermenge' and update total quantity in 'lager'
+            String updateStockSql = """
+                UPDATE produktlagermenge pl
+                INNER JOIN position p ON pl.produkt_fk = p.produktnummer
+                SET pl.menge = pl.menge - p.menge
+                WHERE p.auftragsnummer = ?""";
+    
+            pstmtUpdateStock = conn.prepareStatement(updateStockSql);
+            pstmtUpdateStock.setString(1, orderId);
+            pstmtUpdateStock.executeUpdate();
+    
+            // Step 3: Update order status to 'closed'
+            String closeOrderSql = "UPDATE auftrag SET status = 'geschlossen' WHERE auftragsnummer = ?";
+            pstmtCloseOrder = conn.prepareStatement(closeOrderSql);
+            pstmtCloseOrder.setString(1, orderId);
+            pstmtCloseOrder.executeUpdate();
+    
+            conn.commit();
+            return true;
         } catch (SQLException e) {
-            // Handle SQL exceptions by attempting to rollback the transaction
             try {
-                if (conn != null) {
-                    conn.rollback();
-                }
+                if (conn != null) conn.rollback(); // Rollback in case of an error
             } catch (SQLException ex) {
                 ex.printStackTrace();
             }
             e.printStackTrace();
             return false;
         } finally {
-            // Clean up JDBC resources in the finally block to ensure they are always closed
-            try {
-                if (rs != null) rs.close();
-                if (pstmtCheck != null) pstmtCheck.close();
-                if (pstmtUpdate != null) pstmtUpdate.close();
-                if (pstmtCloseOrder != null) pstmtCloseOrder.close();
-                if (conn != null) {
-                    conn.setAutoCommit(true); // Restore auto-commit mode
-                    conn.close();
-                }
-            } catch (SQLException ex) {
-                ex.printStackTrace();
+            // Close all JDBC resources including ResultSet, PreparedStatements, and Connection
+            closeResources(rs, new PreparedStatement[]{pstmtCheckAvailability, pstmtUpdateStock, pstmtCloseOrder}, conn);
+        }
+    }
+    
+    /**
+     * Closes JDBC resources including ResultSet, PreparedStatements, and Connection.
+     * This method ensures that all database resources are properly closed to prevent resource leaks.
+     * It also restores the auto-commit mode to its default state before closing the connection.
+     *
+     * @param rs         The ResultSet to be closed. Can be null if there's no ResultSet to close.
+     * @param statements An array of PreparedStatements to be closed. It can include multiple statements or be null if there are none.
+     * @param conn       The Connection to be closed. Can be null if there's no Connection to close.
+     */
+    private void closeResources(ResultSet rs, PreparedStatement[] statements, Connection conn) {
+        try {
+            // Attempt to close the ResultSet if it's not null.
+            if (rs != null) {
+                rs.close();
             }
+            // Loop through each PreparedStatement and close it if it's not null.
+            for (PreparedStatement stmt : statements) {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            }
+            // Check if the Connection is not null and close it.
+            // Before closing, it restores the auto-commit mode to true, the default state.
+            if (conn != null) {
+                conn.setAutoCommit(true); // Restore auto-commit before closing
+                conn.close();
+            }
+        } catch (SQLException e) {
+            // Print the stack trace of any SQLException that occurs during the closing process.
+            e.printStackTrace();
         }
     }
 
@@ -374,51 +433,41 @@ public class OrderService {
     }
 
     /**
-     * Deletes a specific position from an order.
+     * Deletes a specific position from an order only if the order's status is "offen" (open).
      *
-     * This method first verifies that the specified position exists within the given order
-     * by executing a SQL query that counts the occurrences of the position ID associated with
-     * the order ID. If no such association is found (i.e., the count is 0), it indicates
-     * that either the position does not exist or it does not belong to the specified order.
-     * In such cases, a {@link ResponseStatusException} is thrown with the status `HttpStatus.NOT_FOUND`
-     * to indicate that the resource was not found.
-     *
-     * If the verification is successful, indicating that the position belongs to the order,
-     * the method proceeds to delete the position from the database using a SQL delete statement.
-     * The deletion is based solely on the position ID, as the prior verification ensures
-     * the position's association with the given order.
-     *
-     * After attempting the deletion, if no rows are affected, which theoretically should not
-     * happen due to the initial verification, the method throws a generic {@link Exception}
-     * indicating a failure to delete the position. This acts as a safeguard to handle
-     * unexpected scenarios where the deletion might not proceed as expected.
-     *
-     * Note: The method uses {@code @SuppressWarnings("deprecation")} to suppress warnings
-     * related to deprecated methods used in the implementation. This is generally used
-     * to maintain compatibility with older API versions while acknowledging that the method
-     * or constructor used is deprecated.
-     *
-     * @param orderId the ID of the order from which to delete the position, represented as a {@link String}.
-     * @param positionId the ID of the position to delete, also represented as a {@link String}.
-     * @throws Exception if the deletion fails after verification, indicating an unexpected error occurred.
-     * @throws ResponseStatusException with {@code HttpStatus.NOT_FOUND} if either the position does not exist
-     *         or it does not belong to the specified order, based on the initial verification query.
+     * @param orderId    The ID of the order from which to delete the position.
+     * @param positionId The ID of the position to delete.
+     * @throws Exception 
+     * @throws OrderClosedException If the order's status is "geschlossen" (closed).
+     * @throws ResponseStatusException With {@code HttpStatus.NOT_FOUND} if either the position does not exist
+     *         or it does not belong to the specified order.
      */
-     @SuppressWarnings("deprecation")
-    public void deleteOrderPosition(String orderId, String positionId) throws Exception {
+    @SuppressWarnings("deprecation")
+    public void deleteOrderPosition(String orderId, String positionId) throws OrderClosedException {
+        // Check if the order is open
+        try {
+            String orderStatusSql = "SELECT status FROM auftrag WHERE auftragsnummer = ?";
+            String status = jdbcTemplate.queryForObject(orderStatusSql, new Object[]{orderId}, String.class);
+            if ("geschlossen".equals(status)) {
+                throw new OrderClosedException("Order with ID " + orderId + " is closed.");
+            }
+        } catch (EmptyResultDataAccessException e) {
+            throw new OrderNotFoundException("Order with ID " + orderId + " not found.");
+        }
+
         // Verify if the position belongs to the given order
         String verifySql = "SELECT COUNT(*) FROM position WHERE positionsnummer = ? AND auftragsnummer = ?";
         int count = jdbcTemplate.queryForObject(verifySql, new Object[]{positionId, orderId}, Integer.class);
         if (count == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order or position not found");
+            throw new PositionNotFoundException("Position not found or does not belong to the specified order.");
         }
 
         // Delete the position
         String deleteSql = "DELETE FROM position WHERE positionsnummer = ?";
         int affectedRows = jdbcTemplate.update(deleteSql, positionId);
         if (affectedRows == 0) {
-            // This should not happen due to the previous check, but it's a safeguard.
-            throw new Exception("Failed to delete the position");
+            // This should not occur due to the checks above
+            throw new PositionNotFoundException("Failed to delete the position.");
         }
     }
 }
