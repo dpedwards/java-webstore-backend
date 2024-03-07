@@ -133,7 +133,7 @@ public class WarehouseService {
             conn.setAutoCommit(false);
 
             // Check if product and warehouse exist
-            if (productAndWarehouseExist(productId, warehouseNumber)) {
+            if (!productAndWarehouseExist(productId, warehouseNumber)) {
                 throw new WarehouseNotFoundException("Product or warehouse not found");
             }
 
