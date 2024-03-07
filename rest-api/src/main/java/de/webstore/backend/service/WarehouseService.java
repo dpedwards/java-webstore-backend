@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import de.webstore.backend.config.DatabaseConnection;
 import de.webstore.backend.dto.WarehouseDTO;
+import de.webstore.backend.exception.ProductOrWarehouseNotFoundException;
 import de.webstore.backend.exception.ProductNotFoundException;
 
 /**
@@ -110,70 +111,191 @@ public class WarehouseService {
     }
 
     /**
-     * Adds a specified quantity of a product to the warehouse.
+     * Adds a specified quantity of a product to the warehouse and updates the warehouse total quantity.
+     * Also ensures the product and warehouse mapping in the 'lagert' table.
      *
      * @param productId The ID of the product.
-     * @param warehouseNumber The Number of the warehouse.
+     * @param warehouseNumber The number of the warehouse.
      * @param menge The quantity to add.
      */
-    public void addProductQuantity(String productId, int warehouseNumber, int menge) {
-        // Update warehouse quantities before fetching
-        updateWarehouseQuantities();
+    public void addProductQuantityAndUpdateWarehouse(String productId, int warehouseNumber, int menge) {
+        Connection conn = null;
+        PreparedStatement pstmtUpdate = null;
+        PreparedStatement pstmtInsert = null;
+        PreparedStatement pstmtUpdateWarehouse = null;
+        PreparedStatement pstmtInsertLagert = null;
+        String checkLagertSql = "SELECT COUNT(*) FROM lagert WHERE produkt_fk = ? AND lager_fk = ?";
+        String updateWarehouseSql = "UPDATE lager SET menge = menge + ? WHERE lagernummer = ?";
+        String insertLagertSql = "INSERT INTO lagert (produkt_fk, lager_fk) VALUES (?, ?) ON DUPLICATE KEY UPDATE produkt_fk=VALUES(produkt_fk), lager_fk=VALUES(lager_fk)";
 
-        // Attempt to update existing product quantity in the warehouse
-        String updateSql = "UPDATE produktlagermenge SET menge = menge + ? WHERE produkt_fk = ? AND lager_fk = ?";
-        // Fallback SQL to insert a new product quantity record if the update affects no rows
-        String insertSql = "INSERT INTO produktlagermenge (produkt_fk, lager_fk, menge) VALUES (?, ?, ?)";
-        
-        try (Connection conn = databaseConnection.getConnection();
-             PreparedStatement pstmtUpdate = conn.prepareStatement(updateSql)) {
-            
+        try {
+            conn = databaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            // Check if product and warehouse exist
+            if (productAndWarehouseExist(productId, warehouseNumber)) {
+                throw new ProductOrWarehouseNotFoundException("Product or warehouse not found");
+            }
+
+            // Update the product quantity in the warehouse
+            String updateSql = "UPDATE produktlagermenge SET menge = menge + ? WHERE produkt_fk = ? AND lager_fk = ?";
+            String insertSql = "INSERT INTO produktlagermenge (produkt_fk, lager_fk, menge) VALUES (?, ?, ?)";
+
+            pstmtUpdate = conn.prepareStatement(updateSql);
             pstmtUpdate.setInt(1, menge);
             pstmtUpdate.setString(2, productId);
             pstmtUpdate.setInt(3, warehouseNumber);
             int affectedRows = pstmtUpdate.executeUpdate();
 
-            // Update warehouse quantities before fetching
-            updateWarehouseQuantities();
-            
-            // If no rows were affected by the update, try to insert a new record
             if (affectedRows == 0) {
-                try (PreparedStatement pstmtInsert = conn.prepareStatement(insertSql)) {
-                    pstmtInsert.setString(1, productId);
-                    pstmtInsert.setInt(2, warehouseNumber);
-                    pstmtInsert.setInt(3, menge);
-                    pstmtInsert.executeUpdate();
+                pstmtInsert = conn.prepareStatement(insertSql);
+                pstmtInsert.setString(1, productId);
+                pstmtInsert.setInt(2, warehouseNumber);
+                pstmtInsert.setInt(3, menge);
+                pstmtInsert.executeUpdate();
+            }
+
+            // Update the total quantity in the warehouse
+            pstmtUpdateWarehouse = conn.prepareStatement(updateWarehouseSql);
+            pstmtUpdateWarehouse.setInt(1, menge);
+            pstmtUpdateWarehouse.setInt(2, warehouseNumber);
+            pstmtUpdateWarehouse.executeUpdate();
+
+            // Ensure the product and warehouse mapping in 'lagert' table
+            try (PreparedStatement pstmtCheckLagert = conn.prepareStatement(checkLagertSql)) {
+                pstmtCheckLagert.setString(1, productId);
+                pstmtCheckLagert.setInt(2, warehouseNumber);
+                ResultSet rs = pstmtCheckLagert.executeQuery();
+                if (rs.next() && rs.getInt(1) == 0) {
+                    pstmtInsertLagert = conn.prepareStatement(insertLagertSql);
+                    pstmtInsertLagert.setString(1, productId);
+                    pstmtInsertLagert.setInt(2, warehouseNumber);
+                    pstmtInsertLagert.executeUpdate();
                 }
             }
+
+            conn.commit();
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            try {
+                if (conn != null) conn.rollback();
+                System.out.println("Rollback due to error: " + e.getMessage());
+            } catch (SQLException ex) {
+                System.out.println("Error during rollback: " + ex.getMessage());
+            }
+        } finally {
+            try {
+                if (pstmtUpdate != null) pstmtUpdate.close();
+                if (pstmtInsert != null) pstmtInsert.close();
+                if (pstmtUpdateWarehouse != null) pstmtUpdateWarehouse.close();
+                if (pstmtInsertLagert != null) pstmtInsertLagert.close();
+                if (conn != null) {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                }
+            } catch (SQLException e) {
+                System.out.println("Error closing resources: " + e.getMessage());
+            }
         }
     }
 
     /**
-     * Reduces a specified quantity of a product in the warehouse. Ensures quantity does not go below zero.
+     * Reduces a specified quantity of a product in the warehouse. Ensures quantity does not go below zero and updates the total warehouse quantity accordingly.
      *
      * @param productId The ID of the product.
-     * @param warehoseNumber The Number of the warehouse.
+     * @param warehouseNumber The number of the warehouse.
      * @param menge The quantity to reduce.
      */
-    public void reduceProductQuantity(String productId, int warehouseNumber, int menge) {
-        String sql = "UPDATE produktlagermenge SET menge = GREATEST(0, menge - ?) WHERE produkt_fk = ? AND lager_fk = ?";
-        try (Connection conn = databaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setInt(1, menge);
-            pstmt.setString(2, productId);
-            pstmt.setInt(3, warehouseNumber);
-            pstmt.executeUpdate();
+    public void reduceProductQuantityAndUpdateWarehouse(String productId, int warehouseNumber, int menge) {
+        Connection conn = null;
+        PreparedStatement pstmtReduceProductQuantity = null;
+        PreparedStatement pstmtUpdateWarehouse = null;
 
-             // Update warehouse quantities before fetching
-            updateWarehouseQuantities();
+        try {
+            conn = databaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            // Check if product and warehouse exist
+            if (!productAndWarehouseExist(productId, warehouseNumber)) {
+                throw new ProductOrWarehouseNotFoundException("Product or warehouse not found.");
+            }
+
+            // Reduce the product quantity in the warehouse
+            String reduceProductQuantitySql = "UPDATE produktlagermenge SET menge = GREATEST(0, menge - ?) WHERE produkt_fk = ? AND lager_fk = ?";
+            pstmtReduceProductQuantity = conn.prepareStatement(reduceProductQuantitySql);
+            pstmtReduceProductQuantity.setInt(1, menge);
+            pstmtReduceProductQuantity.setString(2, productId);
+            pstmtReduceProductQuantity.setInt(3, warehouseNumber);
+            pstmtReduceProductQuantity.executeUpdate();
+
+            // Update the total quantity in the warehouse
+            String updateWarehouseSql = "UPDATE lager SET menge = GREATEST(0, menge - ?) WHERE lagernummer = ?";
+            pstmtUpdateWarehouse = conn.prepareStatement(updateWarehouseSql);
+            pstmtUpdateWarehouse.setInt(1, menge);
+            pstmtUpdateWarehouse.setInt(2, warehouseNumber);
+            pstmtUpdateWarehouse.executeUpdate();
+
+            conn.commit();
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            try {
+                if (conn != null) conn.rollback();
+                System.out.println("Rollback due to error: " + e.getMessage());
+            } catch (SQLException ex) {
+                System.out.println("Error during rollback: " + ex.getMessage());
+            }
+        } finally {
+            try {
+                if (pstmtReduceProductQuantity != null) pstmtReduceProductQuantity.close();
+                if (pstmtUpdateWarehouse != null) pstmtUpdateWarehouse.close();
+                if (conn != null) {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                }
+            } catch (SQLException e) {
+                System.out.println("Error closing resources: " + e.getMessage());
+            }
         }
     }
+    
+    /**
+     * Checks if the specified product and warehouse exist in the database.
+     * 
+     * This method performs two separate checks: one for the product and one for the warehouse.
+     * It queries the `produkt` table with the given product ID and the `lager` table with the given warehouse number.
+     * Both must exist for the method to return true.
+     *
+     * @param productId The unique identifier of the product.
+     * @param warehouseNumber The unique number of the warehouse.
+     * @return true if both the product and warehouse exist, false otherwise.
+     */
+    public boolean productAndWarehouseExist(String productId, int warehouseNumber) {
+        // SQL queries to check the existence of product and warehouse
+        String productExistsQuery = "SELECT COUNT(*) AS count FROM produkt WHERE produktnummer = ?";
+        String warehouseExistsQuery = "SELECT COUNT(*) AS count FROM lager WHERE lagernummer = ?";
 
+        try (Connection conn = databaseConnection.getConnection();
+            // Prepare statements for both queries
+            PreparedStatement productStmt = conn.prepareStatement(productExistsQuery);
+            PreparedStatement warehouseStmt = conn.prepareStatement(warehouseExistsQuery)) {
+
+            // Check product existence
+            productStmt.setString(1, productId);
+            ResultSet productRs = productStmt.executeQuery();
+            boolean productExists = productRs.next() && productRs.getInt("count") > 0;
+            
+            // Check warehouse existence
+            warehouseStmt.setInt(1, warehouseNumber);
+            ResultSet warehouseRs = warehouseStmt.executeQuery();
+            boolean warehouseExists = warehouseRs.next() && warehouseRs.getInt("count") > 0;
+
+            // Both must exist
+            return productExists && warehouseExists;
+        } catch (SQLException e) {
+            // Log error and handle it appropriately
+            System.out.println("Database error in productAndWarehouseExist: " + e.getMessage());
+            return false;
+        }
+    }
+    
     /**
      * Calculates the total quantity of a specified product across all warehouses.
      *
