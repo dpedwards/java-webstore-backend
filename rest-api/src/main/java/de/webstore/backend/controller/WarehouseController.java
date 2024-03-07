@@ -185,7 +185,7 @@ public class WarehouseController {
                 int totalQuantity = warehouseService.calculateTotalProductQuantity(productId);
                 return ResponseEntity.ok().body(totalQuantity);
         } catch (ProductNotFoundException e) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Product ID " + productId + " not found."));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while getting total product quantity across all warehouses."));
         }

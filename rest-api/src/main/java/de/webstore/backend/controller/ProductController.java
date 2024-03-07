@@ -179,9 +179,9 @@ public class ProductController {
             productService.deleteProduct(productId);
             return ResponseEntity.ok().body("Product deleted successfully.");
         } catch (ProductNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Product ID " + productId + " not found."));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         } catch (ProductInOrderException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Product cannot be deleted as it is part of an order."));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             // Log the exception details here for further investigation if needed
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the product."));

@@ -147,9 +147,9 @@ public class OrderController {
             PositionDTO createdPosition = orderService.addOrderPosition(orderId, positionDTO);
             return ResponseEntity.ok(createdPosition);
         } catch (OrderNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         } catch (OrderClosedException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order with ID " + orderId + " is closed."));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Could not process the request."));
         }
@@ -212,10 +212,10 @@ public class OrderController {
             return ResponseEntity.ok().build();
         } catch (OrderNotFoundException e) {
             // Handling case where the specified order ID does not exist in the database.
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
         } catch (OrderClosedException e) {
             // Handling case where the specified order is already closed and cannot be deleted.
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order with ID " + orderId + " is closed and cannot be deleted."));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             // Handling unexpected exceptions during the deletion process.
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while deleting the order."));
@@ -233,11 +233,11 @@ public class OrderController {
      */
     @PutMapping("/close/{orderId}")
     @Operation(summary = "Close an order",
-            description = "Closes an order by its ID after verifying all preconditions, such as sufficient stock levels, are met. If the order cannot be closed due to unmet preconditions or if the order does not exist, appropriate error responses are indicated.",
+            description = "Closes an order by its ID after verifying all preconditions, such as sufficient stock levels, are met. If the order cannot be closed due to unmet preconditions, if the order is already closed, or if the order does not exist, appropriate error responses are indicated.",
             responses = {
                 @ApiResponse(responseCode = "200", description = "Order successfully closed"),
                 @ApiResponse(responseCode = "404", description = "Order not found"),
-                @ApiResponse(responseCode = "409", description = "Preconditions for closing the order are not met (e.g., insufficient stock)"),
+                @ApiResponse(responseCode = "409", description = "Order is already closed or preconditions for closing the order are not met (e.g., insufficient stock)"),
                 @ApiResponse(responseCode = "500", description = "Internal server error")
             })
     public ResponseEntity<?> closeOrder(@PathVariable String orderId) {
@@ -248,13 +248,16 @@ public class OrderController {
             return ResponseEntity.ok().build();
         } catch (OrderNotFoundException e) {
             // If the order is not found, return 404 Not Found
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse("Order with ID " + orderId + " not found."));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.getMessage()));
+        } catch (OrderClosedException e) {
+            // If the order is already closed, return 409 Conflict with a specific message
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
         } catch (InsufficientStockException e) {
             // If preconditions are not met, return 409 Conflict
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Order could not be closed due to insufficient stock."));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
         } catch (Exception e) {
             // For any other errors, return 500 Internal Server Error
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("An error occurred while closing the order."));
         }
-    }    
+    } 
 }
