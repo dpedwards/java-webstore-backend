@@ -8,6 +8,8 @@ This repository contains the source code for a Java webstore backend application
 
 ### Credits
 
+- [Repository](https://github.com/dpedwards/java-webstore-backend)
+
 #### Creator
 
 - **Davain Pablo Edwards**
@@ -23,12 +25,12 @@ To run this application, you will need:
 
 To get started with the Java Webstore Backend Application:
 
-1. **Clone the repository:**
-   ```
-   git clone <repository-url>
-   ```
+1. **Update the MySQL database connection:**
+   `java-webstore-backend\rest-api\src\main\resources\application.properties`
 
-2. Navigate to the project directory:
+   and create the database via the `warehouse_database_uuid_de.sql` file.
+
+2. Navigate to the project directory (optional):
    ```
    cd java-webstore-backend/rest-api
    ```
@@ -43,10 +45,11 @@ To get started with the Java Webstore Backend Application:
    ./gradlew bootRun  # For Unix/Linux/Mac
    gradlew.bat bootRun  # For Windows
    ```
-5. Run the REST-API with Visual Studio Code [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) and [Gradle for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-gradle) Plugins
+
+5. **Run the REST-API with Visual Studio Code [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) and [Gradle for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-gradle) Plugins**
    and execute `java-webstore-backend\rest-api\src\main\java\de\webstore\backend\Application.java` 
 
-6. Access Swagger docs:
+6. **Access Swagger API docs:**
 
    http://localhost:8080/swagger-ui/index.html
 
