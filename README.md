@@ -1,5 +1,4 @@
 [![Java](https://img.shields.io/badge/java-%2017-brown.svg)](https://www.java.com/de/download/faq/java17.xml)
-[![JUnit](https://img.shields.io/badge/JUnit-%204-orange.svg)](https://junit.org/junit5/)
 
 # SOFTWARE ENGINEERING ASSIGNMENT (ITB63-AS)
 
@@ -119,28 +118,27 @@ java-webstore-backend
    │  │     │           │  ├─ ProductUpdateDTO.class
    │  │     │           │  └─ WarehouseDTO.class
    │  │     │           ├─ exception
+   │  │     │           │  ├─ ErrorResponse.class
+   │  │     │           │  ├─ InsufficientStockException.class
    │  │     │           │  ├─ OrderClosedException.class
    │  │     │           │  ├─ OrderNotFoundException.class
-   │  │     │           │  └─ ProductNotFoundException.class
+   │  │     │           │  ├─ PositionNotFoundException.class
+   │  │     │           │  ├─ ProductInOrderException.class
+   │  │     │           │  ├─ ProductNotFoundException.class
+   │  │     │           │  └─ WarehouseNotFoundException.class
    │  │     │           └─ service
    │  │     │              ├─ OrderService.class
    │  │     │              ├─ ProductService.class
    │  │     │              └─ WarehouseService.class
    │  │     └─ test
-   │  │        └─ de
-   │  │           └─ webstore
-   │  │              └─ backend
-   │  │                 └─ WarehouseServiceTest.class
    │  ├─ generated
    │  │  └─ sources
    │  │     ├─ annotationProcessor
    │  │     │  └─ java
-   │  │     │     ├─ main
-   │  │     │     └─ test
+   │  │     │     └─ main
    │  │     └─ headers
    │  │        └─ java
-   │  │           ├─ main
-   │  │           └─ test
+   │  │           └─ main
    │  ├─ resources
    │  │  └─ main
    │  │     └─ application.properties
@@ -149,15 +147,14 @@ java-webstore-backend
    │     │  ├─ compileTransaction
    │     │  │  ├─ backup-dir
    │     │  │  └─ stash-dir
-   │     │  │     ├─ WarehouseController.class.uniqueId0
-   │     │  │     └─ WarehouseService.class.uniqueId1
+   │     │  │     ├─ OrderController.class.uniqueId0
+   │     │  │     └─ OrderService.class.uniqueId1
    │     │  └─ previous-compilation-data.bin
    │     └─ compileTestJava
-   │        ├─ compileTransaction
-   │        │  ├─ backup-dir
-   │        │  └─ stash-dir
-   │        │     └─ WarehouseServiceTest.class.uniqueId0
-   │        └─ previous-compilation-data.bin
+   │        └─ compileTransaction
+   │           ├─ backup-dir
+   │           └─ stash-dir
+   │              └─ WarehouseServiceTest.class.uniqueId0
    ├─ build.gradle
    ├─ gradle
    │  └─ wrapper
@@ -187,9 +184,14 @@ java-webstore-backend
       │  │           │  ├─ ProductUpdateDTO.java
       │  │           │  └─ WarehouseDTO.java
       │  │           ├─ exception
+      │  │           │  ├─ ErrorResponse.java
+      │  │           │  ├─ InsufficientStockException.java
       │  │           │  ├─ OrderClosedException.java
       │  │           │  ├─ OrderNotFoundException.java
-      │  │           │  └─ ProductNotFoundException.java
+      │  │           │  ├─ PositionNotFoundException.java
+      │  │           │  ├─ ProductInOrderException.java
+      │  │           │  ├─ ProductNotFoundException.java
+      │  │           │  └─ WarehouseNotFoundException.java
       │  │           └─ service
       │  │              ├─ OrderService.java
       │  │              ├─ ProductService.java
@@ -200,7 +202,6 @@ java-webstore-backend
             └─ de
                └─ webstore
                   └─ backend
-                     └─ WarehouseServiceTest.java
 
 ```
 
